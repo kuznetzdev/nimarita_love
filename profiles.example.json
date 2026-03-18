@@ -1,0 +1,16 @@
+{
+  "profiles": [
+    {
+      "id": 111111111,
+      "label": "Nick",
+      "role": "boyfriend",
+      "gender": "male"
+    },
+    {
+      "id": 222222222,
+      "label": "Margarette",
+      "role": "girlfriend",
+      "gender": "female"
+    }
+  ]
+}
