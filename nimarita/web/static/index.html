@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Nimarita</title>
+    <script src="https://telegram.org/js/telegram-web-app.js?61"></script>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f4f6fb;
+        --card: #ffffff;
+        --text: #162033;
+        --muted: #5f6b7d;
+        --border: rgba(22, 32, 51, 0.08);
+        --accent: #4c8bf5;
+        --danger: #d14d72;
+        --success: #2f9d69;
+        --warning: #d68720;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .app {
+        min-height: 100vh;
+        padding: calc(20px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+        background: linear-gradient(180deg, rgba(76, 139, 245, 0.10), transparent 120px), var(--bg);
+      }
+      .stack { display: grid; gap: 14px; }
+      .hero, .card {
+        padding: 16px;
+        border-radius: 18px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        box-shadow: 0 8px 22px rgba(21, 31, 52, 0.05);
+      }
+      .hero { background: var(--surface); }
+      .eyebrow, .placeholder, .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .eyebrow { background: rgba(76, 139, 245, 0.14); color: var(--accent); }
+      .placeholder { background: rgba(47, 157, 105, 0.12); color: var(--success); }
+      .pill { background: rgba(76, 139, 245, 0.12); color: var(--accent); }
+      .pill.status-delivered, .pill.status-acknowledged, .pill.status-sent, .pill.status-responded { background: rgba(47, 157, 105, 0.12); color: var(--success); }
+      .pill.status-cancelled, .pill.status-failed { background: rgba(209, 77, 114, 0.12); color: var(--danger); }
+      .pill.status-processing, .pill.status-pending { background: rgba(214, 135, 32, 0.12); color: var(--warning); }
+      h1 { margin: 12px 0 8px; font-size: 28px; line-height: 1.1; }
+      h2 { margin: 0 0 10px; font-size: 18px; }
+      p { margin: 0; line-height: 1.45; color: var(--muted); }
+      .actions, .grid { display: grid; gap: 10px; }
+      .row { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+      .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+      button {
+        border: 0;
+        border-radius: 14px;
+        padding: 13px 14px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .primary { background: var(--accent); color: white; }
+      .secondary { background: var(--surface); color: var(--text); }
+      .danger { background: rgba(209, 77, 114, 0.12); color: var(--danger); }
+      .success { background: rgba(47, 157, 105, 0.12); color: var(--success); }
+      .linkbox {
+        display: grid;
+        gap: 8px;
+        margin-top: 14px;
+        padding: 12px;
+        border-radius: 14px;
+        background: var(--surface);
+        border: 1px dashed var(--border);
+      }
+      .linkbox code {
+        display: block;
+        padding: 10px;
+        border-radius: 12px;
+        background: var(--card);
+        color: var(--text);
+        overflow-wrap: anywhere;
+      }
+      .hidden { display: none !important; }
+      .error { color: var(--danger); font-weight: 600; }
+      label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+      textarea, input, select {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px 13px;
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+      }
+      textarea { min-height: 108px; resize: vertical; }
+      .meta { font-size: 12px; color: var(--muted); }
+      .text-strong { font-weight: 700; color: var(--text); }
+      .reminder-list, .care-template-list, .care-history-list { display: grid; gap: 10px; }
+      .reminder-item, .care-template-item, .care-history-item {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px;
+        background: var(--surface);
+        display: grid;
+        gap: 8px;
+      }
+      .care-template-item .template-title { font-weight: 700; }
+      .care-template-item .template-body, .care-history-item .history-body { color: var(--muted); line-height: 1.4; }
+      .care-history-item.inbound { border-left: 4px solid rgba(47, 157, 105, 0.45); }
+      .care-history-item.outbound { border-left: 4px solid rgba(76, 139, 245, 0.45); }
+      .section-separator { height: 1px; background: var(--border); margin: 4px 0; }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="stack">
+        <section class="hero">
+          <span class="eyebrow">Nimarita · production pair/care runtime</span>
+          <h1>Подтверждённая пара 1↔1</h1>
+          <p>
+            В этой версии уже работают pair-flow, reminders и полноценный care layer: большой каталог шаблонов,
+            история отправок, быстрые ответы через inline-кнопки и автоочистка карточек после действия.
+          </p>
+        </section>
+
+        <section id="loading" class="card">
+          <h2>Инициализация</h2>
+          <p>Проверяю Telegram-auth, поднимаю сессию и загружаю состояние пары.</p>
+        </section>
+
+        <section id="error" class="card hidden">
+          <h2>Что-то пошло не так</h2>
+          <p id="error-text" class="error"></p>
+        </section>
+
+        <section id="no-pair" class="card hidden">
+          <h2>Пары пока нет</h2>
+          <p>Создай одноразовое приглашение. Система строго поддерживает только одну активную пару 1↔1.</p>
+          <div class="actions">
+            <button id="create-invite" class="primary">Создать приглашение 💞</button>
+          </div>
+          <div id="invite-links" class="linkbox hidden"></div>
+        </section>
+
+        <section id="outgoing" class="card hidden">
+          <h2>Исходящее приглашение уже есть</h2>
+          <p id="outgoing-text"></p>
+          <div class="actions">
+            <button id="refresh-invite" class="secondary">Сгенерировать новое приглашение</button>
+          </div>
+          <div id="invite-links-repeat" class="linkbox hidden"></div>
+        </section>
+
+        <section id="incoming" class="card hidden">
+          <h2>Входящее приглашение</h2>
+          <p id="incoming-text"></p>
+          <div class="actions">
+            <button id="accept-invite" class="primary">Подтвердить пару 💌</button>
+            <button id="reject-invite" class="danger">Отклонить</button>
+          </div>
+        </section>
+
+        <section id="active" class="card hidden">
+          <div class="row">
+            <span class="placeholder">Care + reminders включены</span>
+            <button id="refresh-state" class="secondary">Обновить</button>
+          </div>
+          <h2>Пара активна</h2>
+          <p id="active-text"></p>
+          <div class="actions">
+            <button id="unpair" class="danger">Разорвать пару</button>
+          </div>
+        </section>
+
+        <section id="reminder-form-card" class="card hidden">
+          <h2>Новое напоминание</h2>
+          <div class="grid">
+            <label>
+              Текст напоминания
+              <textarea id="reminder-text" placeholder="Например: не забудь поесть и отдохнуть"></textarea>
+            </label>
+            <label>
+              Когда отправить
+              <input id="reminder-datetime" type="datetime-local" />
+            </label>
+            <p class="meta" id="reminder-meta"></p>
+            <button id="create-reminder" class="primary">Создать напоминание ⏰</button>
+          </div>
+        </section>
+
+        <section id="reminders-card" class="card hidden">
+          <div class="row">
+            <h2>Текущие напоминания</h2>
+            <span id="reminders-counter" class="meta"></span>
+          </div>
+          <div id="empty-reminders" class="meta">Пока напоминаний нет.</div>
+          <div id="reminder-list" class="reminder-list"></div>
+        </section>
+
+        <section id="care-browser-card" class="card hidden">
+          <div class="row">
+            <h2>Care layer</h2>
+            <span id="care-counter" class="meta"></span>
+          </div>
+          <p>Выбери категорию, найди подходящий шаблон и отправь его партнёру одним тапом.</p>
+          <div class="toolbar">
+            <select id="care-category"></select>
+            <button id="care-random" class="secondary">Случайный care 💌</button>
+          </div>
+          <div class="section-separator"></div>
+          <div id="care-template-list" class="care-template-list"></div>
+        </section>
+
+        <section id="care-history-card" class="card hidden">
+          <div class="row">
+            <h2>История care-сообщений</h2>
+            <button id="care-history-refresh" class="secondary">Обновить историю</button>
+          </div>
+          <div id="empty-care-history" class="meta">История пока пустая.</div>
+          <div id="care-history-list" class="care-history-list"></div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      const tg = window.Telegram?.WebApp;
+      const state = {
+        sessionToken: null,
+        inviteToken: null,
+        inviteId: null,
+        currentState: null,
+        careTemplates: [],
+        careHistory: [],
+        careCategory: 'all',
+      };
+
+      const el = {
+        loading: document.getElementById('loading'),
+        error: document.getElementById('error'),
+        errorText: document.getElementById('error-text'),
+        noPair: document.getElementById('no-pair'),
+        outgoing: document.getElementById('outgoing'),
+        outgoingText: document.getElementById('outgoing-text'),
+        incoming: document.getElementById('incoming'),
+        incomingText: document.getElementById('incoming-text'),
+        active: document.getElementById('active'),
+        activeText: document.getElementById('active-text'),
+        inviteLinks: document.getElementById('invite-links'),
+        inviteLinksRepeat: document.getElementById('invite-links-repeat'),
+        reminderFormCard: document.getElementById('reminder-form-card'),
+        remindersCard: document.getElementById('reminders-card'),
+        reminderText: document.getElementById('reminder-text'),
+        reminderDatetime: document.getElementById('reminder-datetime'),
+        reminderMeta: document.getElementById('reminder-meta'),
+        reminderList: document.getElementById('reminder-list'),
+        remindersCounter: document.getElementById('reminders-counter'),
+        emptyReminders: document.getElementById('empty-reminders'),
+        careBrowserCard: document.getElementById('care-browser-card'),
+        careHistoryCard: document.getElementById('care-history-card'),
+        careTemplateList: document.getElementById('care-template-list'),
+        careHistoryList: document.getElementById('care-history-list'),
+        emptyCareHistory: document.getElementById('empty-care-history'),
+        careCounter: document.getElementById('care-counter'),
+        careCategory: document.getElementById('care-category'),
+      };
+
+      const sections = ['loading', 'error', 'no-pair', 'outgoing', 'incoming', 'active'];
+
+      function applyTheme() {
+        if (!tg?.themeParams) return;
+        const theme = tg.themeParams;
+        document.documentElement.style.setProperty('--bg', theme.bg_color || '#ffffff');
+        document.documentElement.style.setProperty('--card', theme.secondary_bg_color || theme.bg_color || '#ffffff');
+        document.documentElement.style.setProperty('--surface', theme.section_bg_color || '#f4f6fb');
+        document.documentElement.style.setProperty('--text', theme.text_color || '#162033');
+        document.documentElement.style.setProperty('--muted', theme.hint_color || '#5f6b7d');
+        document.documentElement.style.setProperty('--accent', theme.button_color || '#4c8bf5');
+        document.documentElement.style.setProperty('--border', theme.section_separator_color || 'rgba(22,32,51,0.08)');
+      }
+
+      function getStartParam() {
+        const qp = new URLSearchParams(window.location.search);
+        return qp.get('tgWebAppStartParam') || tg?.initDataUnsafe?.start_param || '';
+      }
+
+      function showOnly(key) {
+        for (const section of sections) {
+          el[section].classList.add('hidden');
+        }
+        el[key].classList.remove('hidden');
+      }
+
+      function setActiveBlocksVisible(visible) {
+        el.reminderFormCard.classList.toggle('hidden', !visible);
+        el.remindersCard.classList.toggle('hidden', !visible);
+        el.careBrowserCard.classList.toggle('hidden', !visible);
+        el.careHistoryCard.classList.toggle('hidden', !visible);
+      }
+
+      function showError(message) {
+        el.errorText.textContent = message;
+        setActiveBlocksVisible(false);
+        showOnly('error');
+        tg?.showAlert?.(message);
+      }
+
+      async function api(path, options = {}) {
+        const headers = new Headers(options.headers || {});
+        headers.set('Content-Type', 'application/json');
+        if (state.sessionToken) {
+          headers.set('Authorization', `Bearer ${state.sessionToken}`);
+        }
+        const response = await fetch(path, { ...options, headers });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || 'Запрос завершился ошибкой.');
+        }
+        return data;
+      }
+
+      function label(text) {
+        const item = document.createElement('strong');
+        item.textContent = text;
+        return item;
+      }
+
+      function copyButton(value) {
+        const button = document.createElement('button');
+        button.className = 'secondary';
+        button.textContent = 'Скопировать';
+        button.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(value);
+            tg?.HapticFeedback?.notificationOccurred?.('success');
+          } catch {
+            tg?.showAlert?.('Не удалось скопировать ссылку.');
+          }
+        });
+        return button;
+      }
+
+      function renderLinks(container, invite) {
+        container.innerHTML = '';
+        container.classList.remove('hidden');
+        const botCode = document.createElement('code');
+        botCode.textContent = invite.bot_start_link;
+        container.appendChild(label('Bot link'));
+        container.appendChild(botCode);
+        container.appendChild(copyButton(invite.bot_start_link));
+        if (invite.mini_app_link) {
+          const miniCode = document.createElement('code');
+          miniCode.textContent = invite.mini_app_link;
+          container.appendChild(label('Mini App link'));
+          container.appendChild(miniCode);
+          container.appendChild(copyButton(invite.mini_app_link));
+        }
+      }
+
+      function humanizeReminderStatus(status, action) {
+        if (status === 'acknowledged' && action === 'done') return 'выполнено';
+        if (status === 'acknowledged' && String(action || '').startsWith('snooze_')) return 'отложено';
+        return {
+          scheduled: 'запланировано',
+          processing: 'в обработке',
+          delivered: 'доставлено',
+          acknowledged: 'подтверждено',
+          failed: 'ошибка',
+          cancelled: 'отменено',
+        }[status] || status;
+      }
+
+      function humanizeCareStatus(status) {
+        return {
+          pending: 'в очереди',
+          processing: 'отправляется',
+          sent: 'отправлено',
+          responded: 'получен ответ',
+          failed: 'ошибка',
+        }[status] || status;
+      }
+
+      function renderReminders(reminders) {
+        el.reminderList.innerHTML = '';
+        el.remindersCounter.textContent = `${Array.isArray(reminders) ? reminders.length : 0} шт.`;
+        if (!Array.isArray(reminders) || reminders.length === 0) {
+          el.emptyReminders.classList.remove('hidden');
+          return;
+        }
+        el.emptyReminders.classList.add('hidden');
+
+        for (const item of reminders) {
+          const card = document.createElement('div');
+          card.className = 'reminder-item';
+
+          const top = document.createElement('div');
+          top.className = 'row';
+          const pill = document.createElement('span');
+          pill.className = `pill status-${item.status}`;
+          pill.textContent = humanizeReminderStatus(item.status, item.handled_action);
+          const time = document.createElement('span');
+          time.className = 'meta';
+          time.textContent = new Date(item.scheduled_at_utc).toLocaleString();
+          top.appendChild(pill);
+          top.appendChild(time);
+
+          const text = document.createElement('div');
+          text.className = 'text-strong';
+          text.textContent = item.text;
+
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          meta.textContent = `Отправитель: ${item.creator.display_name} → Получатель: ${item.recipient.display_name}`;
+
+          card.appendChild(top);
+          card.appendChild(text);
+          card.appendChild(meta);
+
+          if (item.last_error) {
+            const error = document.createElement('div');
+            error.className = 'meta error';
+            error.textContent = `Ошибка доставки: ${item.last_error}`;
+            card.appendChild(error);
+          }
+
+          if (item.status === 'scheduled' && item.creator.telegram_user_id === state.currentState?.user?.telegram_user_id) {
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'secondary';
+            cancelBtn.textContent = 'Отменить';
+            cancelBtn.addEventListener('click', () => cancelReminder(item.rule_id));
+            card.appendChild(cancelBtn);
+          }
+
+          el.reminderList.appendChild(card);
+        }
+      }
+
+      function populateCareCategories(templates) {
+        const currentValue = state.careCategory;
+        const categories = new Map();
+        categories.set('all', 'Все категории');
+        for (const item of templates) {
+          if (!categories.has(item.category)) {
+            categories.set(item.category, item.category_label || item.category);
+          }
+        }
+        el.careCategory.innerHTML = '';
+        for (const [value, label] of categories.entries()) {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = label;
+          el.careCategory.appendChild(option);
+        }
+        const nextValue = categories.has(currentValue) ? currentValue : (categories.size > 1 ? [...categories.keys()][1] : 'all');
+        state.careCategory = nextValue;
+        el.careCategory.value = nextValue;
+      }
+
+      function filteredTemplates() {
+        if (state.careCategory === 'all') return state.careTemplates;
+        return state.careTemplates.filter((item) => item.category === state.careCategory);
+      }
+
+      function renderCareTemplates(templates) {
+        state.careTemplates = Array.isArray(templates) ? templates : [];
+        populateCareCategories(state.careTemplates);
+        const visible = filteredTemplates();
+        el.careTemplateList.innerHTML = '';
+        el.careCounter.textContent = `${state.careTemplates.length} шаблонов`;
+        for (const item of visible) {
+          const card = document.createElement('div');
+          card.className = 'care-template-item';
+
+          const top = document.createElement('div');
+          top.className = 'row';
+          const category = document.createElement('span');
+          category.className = 'pill';
+          category.textContent = `${item.emoji} ${item.category_label}`;
+          const code = document.createElement('span');
+          code.className = 'meta';
+          code.textContent = item.template_code;
+          top.appendChild(category);
+          top.appendChild(code);
+
+          const title = document.createElement('div');
+          title.className = 'template-title';
+          title.textContent = `${item.emoji} ${item.title}`;
+
+          const body = document.createElement('div');
+          body.className = 'template-body';
+          body.textContent = item.body;
+
+          const action = document.createElement('button');
+          action.className = 'primary';
+          action.textContent = 'Отправить партнёру 💌';
+          action.addEventListener('click', () => sendCare(item.template_code));
+
+          card.appendChild(top);
+          card.appendChild(title);
+          card.appendChild(body);
+          card.appendChild(action);
+          el.careTemplateList.appendChild(card);
+        }
+      }
+
+      function renderCareHistory(history) {
+        state.careHistory = Array.isArray(history) ? history : [];
+        el.careHistoryList.innerHTML = '';
+        if (!state.careHistory.length) {
+          el.emptyCareHistory.classList.remove('hidden');
+          return;
+        }
+        el.emptyCareHistory.classList.add('hidden');
+
+        for (const item of state.careHistory) {
+          const card = document.createElement('div');
+          card.className = `care-history-item ${item.direction}`;
+
+          const top = document.createElement('div');
+          top.className = 'row';
+          const pill = document.createElement('span');
+          pill.className = `pill status-${item.status}`;
+          pill.textContent = humanizeCareStatus(item.status);
+          const time = document.createElement('span');
+          time.className = 'meta';
+          time.textContent = new Date(item.created_at).toLocaleString();
+          top.appendChild(pill);
+          top.appendChild(time);
+
+          const title = document.createElement('div');
+          title.className = 'text-strong';
+          title.textContent = `${item.emoji} ${item.title}`;
+
+          const direction = document.createElement('div');
+          direction.className = 'meta';
+          direction.textContent = item.direction === 'outbound'
+            ? `Ты → ${item.recipient.display_name}`
+            : `${item.sender.display_name} → Ты`;
+
+          const body = document.createElement('div');
+          body.className = 'history-body';
+          body.textContent = item.body;
+
+          card.appendChild(top);
+          card.appendChild(title);
+          card.appendChild(direction);
+          card.appendChild(body);
+
+          if (item.response_title) {
+            const response = document.createElement('div');
+            response.className = 'meta';
+            response.textContent = `Ответ: ${item.response_emoji || ''} ${item.response_title} — ${item.response_body || ''}`;
+            card.appendChild(response);
+          }
+          if (item.last_error) {
+            const error = document.createElement('div');
+            error.className = 'meta error';
+            error.textContent = `Ошибка: ${item.last_error}`;
+            card.appendChild(error);
+          }
+
+          el.careHistoryList.appendChild(card);
+        }
+      }
+
+      function applyPayload(payload) {
+        const serverState = payload.state;
+        state.currentState = serverState;
+        state.inviteToken = payload.invite_preview ? getStartParam().replace(/^invite_/, '') : null;
+        state.inviteId = payload.invite_preview?.invite_id || serverState.incoming_invite?.id || null;
+
+        if (payload.invite_preview && state.inviteToken) {
+          setActiveBlocksVisible(false);
+          el.incomingText.textContent = `${payload.invite_preview.inviter.display_name} приглашает тебя в подтверждённую пару 1↔1.`;
+          showOnly('incoming');
+          return;
+        }
+
+        if (serverState.mode === 'active' && serverState.partner) {
+          el.activeText.textContent = `Текущий партнёр: ${serverState.partner.display_name}. Связь активна и эксклюзивна.`;
+          setActiveBlocksVisible(true);
+          renderReminders(payload.reminders || []);
+          renderCareTemplates(payload.care_templates || []);
+          renderCareHistory(payload.care_history || []);
+          showOnly('active');
+          return;
+        }
+
+        setActiveBlocksVisible(false);
+
+        if (serverState.mode === 'incoming_invite' && serverState.incoming_invite?.inviter) {
+          el.incomingText.textContent = `${serverState.incoming_invite.inviter.display_name} приглашает тебя в пару.`;
+          showOnly('incoming');
+          return;
+        }
+
+        if (serverState.mode === 'outgoing_invite' && serverState.outgoing_invite) {
+          el.outgoingText.textContent = `Есть активное исходящее приглашение до ${new Date(serverState.outgoing_invite.expires_at).toLocaleString()}. При необходимости можно выпустить новое.`;
+          showOnly('outgoing');
+          return;
+        }
+
+        showOnly('no-pair');
+      }
+
+      async function refreshState() {
+        const result = await api('/api/v1/state');
+        applyPayload(result);
+      }
+
+      async function refreshCareHistory() {
+        const result = await api('/api/v1/care/history');
+        renderCareHistory(result.history || []);
+      }
+
+      async function createInvite(targetContainer) {
+        try {
+          const result = await api('/api/v1/pairs/invite', { method: 'POST', body: '{}' });
+          renderLinks(targetContainer, result.invite);
+          await refreshState();
+          tg?.HapticFeedback?.notificationOccurred?.('success');
+        } catch (error) {
+          showError(error.message || 'Не удалось создать приглашение.');
+        }
+      }
+
+      async function acceptInvite() {
+        if (!state.inviteToken && !state.inviteId) {
+          showError('Invite context не найден.');
+          return;
+        }
+        try {
+          const payload = state.inviteToken ? { token: state.inviteToken } : { invite_id: state.inviteId };
+          await api('/api/v1/pairs/accept', { method: 'POST', body: JSON.stringify(payload) });
+          tg?.HapticFeedback?.notificationOccurred?.('success');
+          await refreshState();
+        } catch (error) {
+          showError(error.message || 'Не удалось подтвердить пару.');
+        }
+      }
+
+      async function rejectInvite() {
+        if (!state.inviteToken && !state.inviteId) {
+          showError('Invite context не найден.');
+          return;
+        }
+        try {
+          const payload = state.inviteToken ? { token: state.inviteToken } : { invite_id: state.inviteId };
+          await api('/api/v1/pairs/reject', { method: 'POST', body: JSON.stringify(payload) });
+          tg?.HapticFeedback?.notificationOccurred?.('success');
+          await refreshState();
+        } catch (error) {
+          showError(error.message || 'Не удалось отклонить приглашение.');
+        }
+      }
+
+      async function unpair() {
+        const confirmed = await new Promise((resolve) => {
+          if (!tg?.showConfirm) return resolve(window.confirm('Разорвать активную пару?'));
+          tg.showConfirm('Разорвать активную пару?', resolve);
+        });
+        if (!confirmed) return;
+        try {
+          await api('/api/v1/pairs/unpair', { method: 'POST', body: '{}' });
+          tg?.HapticFeedback?.notificationOccurred?.('success');
+          await refreshState();
+        } catch (error) {
+          showError(error.message || 'Не удалось завершить пару.');
+        }
+      }
+
+      async function createReminder() {
+        try {
+          const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
+          const payload = {
+            text: el.reminderText.value,
+            scheduled_for_local: el.reminderDatetime.value,
+            timezone,
+          };
+          const result = await api('/api/v1/reminders', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          });
+          el.reminderText.value = '';
+          tg?.HapticFeedback?.notificationOccurred?.('success');
+          renderReminders(result.reminders || []);
+        } catch (error) {
+          showError(error.message || 'Не удалось создать напоминание.');
+        }
+      }
+
+      async function cancelReminder(ruleId) {
+        const confirmed = await new Promise((resolve) => {
+          if (!tg?.showConfirm) return resolve(window.confirm('Отменить это напоминание?'));
+          tg.showConfirm('Отменить это напоминание?', resolve);
+        });
+        if (!confirmed) return;
+        try {
+          const result = await api(`/api/v1/reminders/${ruleId}/cancel`, { method: 'POST', body: '{}' });
+          tg?.HapticFeedback?.notificationOccurred?.('success');
+          renderReminders(result.reminders || []);
+        } catch (error) {
+          showError(error.message || 'Не удалось отменить напоминание.');
+        }
+      }
+
+      async function sendCare(templateCode) {
+        try {
+          const result = await api('/api/v1/care/send', {
+            method: 'POST',
+            body: JSON.stringify({ template_code: templateCode }),
+          });
+          tg?.HapticFeedback?.notificationOccurred?.('success');
+          renderCareHistory(result.history || []);
+          window.setTimeout(() => {
+            refreshCareHistory().catch(() => {});
+          }, 1800);
+        } catch (error) {
+          showError(error.message || 'Не удалось отправить care-сообщение.');
+        }
+      }
+
+      async function sendRandomCare() {
+        const templates = filteredTemplates();
+        if (!templates.length) {
+          showError('В выбранной категории пока нет шаблонов.');
+          return;
+        }
+        const randomItem = templates[Math.floor(Math.random() * templates.length)];
+        await sendCare(randomItem.template_code);
+      }
+
+      async function bootstrap() {
+        applyTheme();
+        tg?.ready?.();
+        tg?.expand?.();
+
+        if (!tg) {
+          showError('Mini App нужно открывать внутри Telegram.');
+          return;
+        }
+
+        el.reminderMeta.textContent = `Твой timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown'}`;
+
+        try {
+          const auth = await api('/api/v1/auth', {
+            method: 'POST',
+            body: JSON.stringify({
+              init_data: tg.initData,
+              start_param: getStartParam(),
+            }),
+          });
+          state.sessionToken = auth.session_token;
+          applyPayload(auth);
+        } catch (error) {
+          showError(error.message || 'Не удалось пройти авторизацию.');
+        }
+      }
+
+      document.getElementById('create-invite').addEventListener('click', () => createInvite(el.inviteLinks));
+      document.getElementById('refresh-invite').addEventListener('click', () => createInvite(el.inviteLinksRepeat));
+      document.getElementById('accept-invite').addEventListener('click', acceptInvite);
+      document.getElementById('reject-invite').addEventListener('click', rejectInvite);
+      document.getElementById('unpair').addEventListener('click', unpair);
+      document.getElementById('create-reminder').addEventListener('click', createReminder);
+      document.getElementById('refresh-state').addEventListener('click', refreshState);
+      document.getElementById('care-history-refresh').addEventListener('click', refreshCareHistory);
+      document.getElementById('care-random').addEventListener('click', sendRandomCare);
+      el.careCategory.addEventListener('change', () => {
+        state.careCategory = el.careCategory.value;
+        tg?.HapticFeedback?.selectionChanged?.();
+        renderCareTemplates(state.careTemplates || []);
+      });
+
+      bootstrap();
+    </script>
+  </body>
+</html>

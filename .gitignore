@@ -2,43 +2,57 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.py,cover
+.python-version
+
+# Type checker / linter / test caches
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .hypothesis/
+.pyre/
+.pytype/
+.nox/
+.tox/
+.cache/
+.ipynb_checkpoints/
 .coverage
 .coverage.*
+coverage.xml
 htmlcov/
 
 # Virtual environments
-venv/
 .venv/
+.venv*/
+venv/
 env/
 ENV/
+env.bak/
+venv.bak/
 
-# IDE and OS files
-.idea/
-.vscode/
-*.swp
-*.swo
-Thumbs.db
-.DS_Store
-
-# Build and archive artifacts
+# Build and packaging artifacts
 build/
 dist/
+site/
+.eggs/
+*.egg
 *.egg-info/
-*.zip
-*.tar
-*.tar.gz
-*.tgz
-*.7z
+pip-wheel-metadata/
+wheels/
+share/python-wheels/
+*.whl
 
-# Runtime data and logs
+# Runtime data, temporary files and logs
 logs/
 data/
+tmp/
+temp/
 *.log
+*.out
+*.err
 *.pid
+*.pid.lock
+*.seed
 *.sqlite
 *.sqlite3
 *.db
@@ -47,6 +61,10 @@ data/
 .env
 .env.*
 !.env.example
+!.env.sample
+!.env.template
+.envrc
+.direnv/
 *.pem
 *.key
 *.crt
@@ -60,12 +78,39 @@ secrets.json
 credentials.json
 token.json
 
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+
 # Node and frontend tooling
 node_modules/
 .npm/
 .pnpm-store/
 .yarn/
+.parcel-cache/
+.next/
+.nuxt/
+.svelte-kit/
 
-# Misc
-tmp/
-temp/
+# IDE and editor files
+.idea/
+.vscode/
+*.iml
+*.suo
+*.user
+*.userossc
+*.sln.docstates
+*.swp
+*.swo
+*~
+
+# OS service files
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.Spotlight-V100/
+.Trashes/
