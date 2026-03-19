@@ -32,6 +32,10 @@ jobs:
           cp -R nimarita/web/static/* _site/
           touch _site/.nojekyll
 
+      - name: Inject API_BASE into index.html
+        run: |
+          sed -i "s|PLACEHOLDER_API_BASE|${{ secrets.MINIAPP_API_BASE }}|g" _site/index.html
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
