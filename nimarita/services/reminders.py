@@ -228,7 +228,7 @@ class ReminderService:
     async def snooze(self, *, telegram_user_id: int, occurrence_id: int, minutes: int = 10) -> tuple[ReminderEnvelope, ReminderEnvelope]:
         actor = await self._require_user(telegram_user_id)
         if minutes <= 0 or minutes > 120:
-            raise ValidationError("Сценарий snooze поддерживает диапазон от 1 до 120 минут.")
+            raise ValidationError("Отложенное напоминание поддерживает диапазон от 1 до 120 минут.")
         try:
             current, follow_up = await self._reminders.snooze(
                 occurrence_id=occurrence_id,
@@ -274,11 +274,11 @@ class ReminderService:
     async def _build_envelope_from_occurrence(self, occurrence: ReminderOccurrence) -> ReminderEnvelope:
         rule = await self._reminders.get_rule(occurrence.rule_id)
         if rule is None:
-            raise NotFoundError("Reminder rule is missing.")
+            raise NotFoundError("Правило напоминания не найдено.")
         creator = await self._users.get_by_id(occurrence.creator_user_id)
         recipient = await self._users.get_by_id(occurrence.recipient_user_id)
         if creator is None or recipient is None:
-            raise NotFoundError("Reminder participants are missing.")
+            raise NotFoundError("Участники напоминания не найдены.")
         return ReminderEnvelope(rule=rule, occurrence=occurrence, creator=creator, recipient=recipient)
 
 
@@ -335,6 +335,6 @@ def _parse_local_datetime_to_utc(value: str, timezone_name: str) -> datetime:
     try:
         tz = ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError as error:
-        raise ValidationError("Неизвестный timezone.") from error
+        raise ValidationError("Неизвестный часовой пояс.") from error
     aware = local_naive.replace(tzinfo=tz)
     return aware.astimezone(UTC)

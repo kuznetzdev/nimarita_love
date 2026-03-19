@@ -28,16 +28,16 @@ class TelegramInitDataVerifier:
 
     def verify(self, init_data: str) -> TelegramUserSnapshot:
         if not init_data.strip():
-            raise WebAuthError(status=401, message="Missing Telegram initData.")
+            raise WebAuthError(status=401, message="Отсутствует Telegram initData.")
 
         pairs = parse_qsl(init_data, keep_blank_values=True)
         if not pairs:
-            raise WebAuthError(status=401, message="Telegram initData is empty.")
+            raise WebAuthError(status=401, message="Telegram initData пустой.")
 
         fields = {key: value for key, value in pairs}
         provided_hash = fields.pop("hash", "")
         if not provided_hash:
-            raise WebAuthError(status=401, message="Telegram initData hash is missing.")
+            raise WebAuthError(status=401, message="Отсутствует хеш Telegram initData.")
 
         data_check_string = "\n".join(
             f"{key}={value}" for key, value in sorted(fields.items(), key=lambda item: item[0])
@@ -54,30 +54,30 @@ class TelegramInitDataVerifier:
         ).hexdigest()
 
         if not hmac.compare_digest(expected_hash, provided_hash):
-            raise WebAuthError(status=401, message="Telegram initData hash mismatch.")
+            raise WebAuthError(status=401, message="Хеш Telegram initData не совпадает.")
 
         auth_date_text = fields.get("auth_date", "")
         try:
             auth_date = int(auth_date_text)
         except ValueError as error:
-            raise WebAuthError(status=401, message="Telegram auth_date is invalid.") from error
+            raise WebAuthError(status=401, message="Некорректное значение Telegram auth_date.") from error
 
         now_timestamp = int(datetime.now(tz=UTC).timestamp())
         if auth_date > now_timestamp + 60:
-            raise WebAuthError(status=401, message="Telegram auth_date is in the future.")
+            raise WebAuthError(status=401, message="Telegram auth_date указывает на будущее время.")
         if now_timestamp - auth_date > self._ttl_seconds:
-            raise WebAuthError(status=401, message="Telegram initData has expired.")
+            raise WebAuthError(status=401, message="Срок действия Telegram initData истёк.")
 
         user_payload = _parse_json_object(fields.get("user"))
         if not user_payload:
-            raise WebAuthError(status=401, message="Telegram user payload is missing.")
+            raise WebAuthError(status=401, message="Отсутствуют данные пользователя Telegram.")
 
         chat_payload = _parse_json_object(fields.get("chat"))
         chat_id = _read_int(chat_payload.get("id"), default=None) if chat_payload else None
 
         telegram_user_id = _read_int(user_payload.get("id"), default=None)
         if telegram_user_id is None or telegram_user_id <= 0:
-            raise WebAuthError(status=401, message="Telegram user id is invalid.")
+            raise WebAuthError(status=401, message="Некорректный идентификатор пользователя Telegram.")
 
         return TelegramUserSnapshot(
             telegram_user_id=telegram_user_id,
@@ -106,7 +106,7 @@ class SessionManager:
 
     def verify(self, token: str) -> int:
         if not token or "." not in token:
-            raise WebAuthError(status=401, message="Missing or malformed session token.")
+            raise WebAuthError(status=401, message="Отсутствует токен сессии или его формат некорректен.")
         encoded_part, signature = token.split(".", 1)
         expected_signature = hmac.new(
             self._secret,
@@ -114,19 +114,19 @@ class SessionManager:
             hashlib.sha256,
         ).hexdigest()
         if not hmac.compare_digest(expected_signature, signature):
-            raise WebAuthError(status=401, message="Invalid session signature.")
+            raise WebAuthError(status=401, message="Некорректная подпись сессии.")
         padded = encoded_part + "=" * (-len(encoded_part) % 4)
         try:
             raw = base64.urlsafe_b64decode(padded.encode("utf-8"))
             payload = json.loads(raw.decode("utf-8"))
         except Exception as error:
-            raise WebAuthError(status=401, message="Malformed session payload.") from error
+            raise WebAuthError(status=401, message="Некорректный payload сессии.") from error
         exp = int(payload.get("exp", 0))
         if exp < int(datetime.now(tz=UTC).timestamp()):
-            raise WebAuthError(status=401, message="Session token has expired.")
+            raise WebAuthError(status=401, message="Срок действия токена сессии истёк.")
         sub = int(payload.get("sub", 0))
         if sub <= 0:
-            raise WebAuthError(status=401, message="Session subject is invalid.")
+            raise WebAuthError(status=401, message="Некорректный идентификатор пользователя в токене.")
         return sub
 
 

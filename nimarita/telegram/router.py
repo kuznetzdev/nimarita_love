@@ -26,20 +26,42 @@ from nimarita.telegram.keyboards import (
 from nimarita.telegram.menu import sync_private_menu_button
 from nimarita.telegram.notifier import TelegramNotifier
 from nimarita.telegram.texts import (
+    card_hidden_short_text,
     care_hidden_text,
     care_reply_applied_text,
     care_usage_text,
+    confirmation_required_text,
+    dashboard_updated_text,
     help_text,
+    invalid_action_text,
+    invalid_invite_id_text,
+    invalid_pagination_text,
+    invalid_quick_reply_text,
+    invalid_reminder_id_text,
+    invalid_snooze_action_text,
     invite_created_text,
+    invite_rejected_short_text,
     invite_preview_text,
+    no_active_pair_text,
+    open_ready_text,
     pair_closed_text,
+    pair_closed_short_text,
+    pair_confirmed_short_text,
     pair_confirmed_text,
+    pair_link_ready_text,
     pair_rejected_text,
+    pagination_updated_text,
+    private_chat_only_text,
+    quick_reply_sent_text,
     remind_usage_text,
+    reminder_done_short_text,
+    reminder_snoozed_short_text,
     reminder_action_done_text,
     reminder_action_snoozed_text,
     reminder_created_text,
     status_text,
+    unpair_confirmation_short_text,
+    unpair_confirmation_text,
     welcome_text,
 )
 from nimarita.telegram.ui import TelegramUI
@@ -64,7 +86,7 @@ def build_router(
 
     async def _register_user_from_message(message: Message) -> TelegramUserSnapshot:
         if message.chat.type != 'private':
-            raise ValidationError('Эта версия работает только в private chat с ботом.')
+            raise ValidationError(private_chat_only_text())
         user = message.from_user
         if user is None:
             raise RuntimeError('Telegram message has no from_user.')
@@ -133,7 +155,7 @@ def build_router(
     @router.message(CommandStart())
     async def command_start(message: Message, command: CommandObject | None = None) -> None:
         if message.chat.type != 'private':
-            await message.answer('Эта версия работает только в private chat с ботом.')
+            await message.answer(private_chat_only_text())
             return
         try:
             snapshot = await _register_user_from_message(message)
@@ -178,7 +200,7 @@ def build_router(
         await _render_dashboard(snapshot.telegram_user_id, message.chat.id)
         await _send_transient(
             message.chat.id,
-            'Точка входа готова. Можно сразу открыть Mini App.',
+            open_ready_text(),
             kind='open',
             reply_markup=main_keyboard(settings.webapp_public_url),
         )
@@ -212,11 +234,11 @@ def build_router(
             await _handle_message_error(message, error)
             return
         if state.active_pair is None:
-            await _send_transient(message.chat.id, 'Активной пары нет.', kind='unpair-empty')
+            await _send_transient(message.chat.id, no_active_pair_text(), kind='unpair-empty')
             return
         await _send_transient(
             message.chat.id,
-            'Подтверди разрыв пары. Это действие остановит все парные сценарии до нового подтверждения.',
+            unpair_confirmation_text(),
             kind='unpair-confirm',
             seconds=45,
             reply_markup=confirm_unpair_keyboard(),
@@ -297,7 +319,7 @@ def build_router(
         except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
             await _handle_callback_error(callback, error)
             return
-        await callback.answer('Ссылка для пары готова')
+        await callback.answer(pair_link_ready_text())
         await callback.message.answer(invite_created_text(result.links), disable_web_page_preview=True)
         await _render_dashboard(snapshot.telegram_user_id, callback.message.chat.id)
 
@@ -312,7 +334,7 @@ def build_router(
         except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
             await _handle_callback_error(callback, error)
             return
-        await callback.answer('Панель обновлена')
+        await callback.answer(dashboard_updated_text())
 
     @router.callback_query(F.data == 'pair:ask_unpair')
     async def callback_ask_unpair(callback: CallbackQuery) -> None:
@@ -326,12 +348,12 @@ def build_router(
             await _handle_callback_error(callback, error)
             return
         if state.active_pair is None:
-            await callback.answer('Активной пары нет', show_alert=True)
+            await callback.answer(no_active_pair_text(), show_alert=True)
             return
-        await callback.answer('Нужно подтверждение')
+        await callback.answer(confirmation_required_text())
         await _send_transient(
             callback.message.chat.id,
-            'Подтверди разрыв пары. После этого reminders и парные действия остановятся.',
+            unpair_confirmation_short_text(),
             kind='unpair-confirm',
             seconds=45,
             reply_markup=confirm_unpair_keyboard(),
@@ -347,12 +369,12 @@ def build_router(
             snapshot = await _register_user_from_callback(callback)
             _pair, inviter, invitee = await pairing_service.accept_invite_by_id(snapshot.telegram_user_id, invite_id)
         except ValueError:
-            await callback.answer('Некорректный invite id', show_alert=True)
+            await callback.answer(invalid_invite_id_text(), show_alert=True)
             return
         except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
             await _handle_callback_error(callback, error)
             return
-        await callback.answer('Пара подтверждена')
+        await callback.answer(pair_confirmed_short_text())
         await ui.safe_edit_callback_message(message=callback.message, text=pair_confirmed_text(inviter), reply_markup=None)
         await ui.schedule_delete(
             chat_id=callback.message.chat.id,
@@ -373,12 +395,12 @@ def build_router(
             snapshot = await _register_user_from_callback(callback)
             _invite, inviter, rejector = await pairing_service.reject_invite_by_id(snapshot.telegram_user_id, invite_id)
         except ValueError:
-            await callback.answer('Некорректный invite id', show_alert=True)
+            await callback.answer(invalid_invite_id_text(), show_alert=True)
             return
         except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
             await _handle_callback_error(callback, error)
             return
-        await callback.answer('Приглашение отклонено')
+        await callback.answer(invite_rejected_short_text())
         await ui.safe_edit_callback_message(message=callback.message, text=pair_rejected_text(inviter), reply_markup=None)
         await ui.schedule_delete(
             chat_id=callback.message.chat.id,
@@ -400,7 +422,7 @@ def build_router(
         except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
             await _handle_callback_error(callback, error)
             return
-        await callback.answer('Пара завершена')
+        await callback.answer(pair_closed_short_text())
         await ui.safe_edit_callback_message(message=callback.message, text=pair_closed_text(actor), reply_markup=None)
         await ui.schedule_delete(
             chat_id=callback.message.chat.id,
@@ -424,12 +446,12 @@ def build_router(
                 occurrence_id=occurrence_id,
             )
         except ValueError:
-            await callback.answer('Некорректный reminder id', show_alert=True)
+            await callback.answer(invalid_reminder_id_text(), show_alert=True)
             return
         except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
             await _handle_callback_error(callback, error)
             return
-        await callback.answer('Готово ✅')
+        await callback.answer(reminder_done_short_text())
         await ui.safe_edit_callback_message(
             message=callback.message,
             text=reminder_action_done_text(envelope),
@@ -450,7 +472,7 @@ def build_router(
             return
         parts = (callback.data or '').split(':')
         if len(parts) < 4:
-            await callback.answer('Некорректный snooze action', show_alert=True)
+            await callback.answer(invalid_snooze_action_text(), show_alert=True)
             return
         try:
             occurrence_id = int(parts[2])
@@ -462,12 +484,12 @@ def build_router(
                 minutes=minutes,
             )
         except ValueError:
-            await callback.answer('Некорректный snooze action', show_alert=True)
+            await callback.answer(invalid_snooze_action_text(), show_alert=True)
             return
         except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
             await _handle_callback_error(callback, error)
             return
-        await callback.answer('Отложено')
+        await callback.answer(reminder_snoozed_short_text())
         await ui.safe_edit_callback_message(
             message=callback.message,
             text=reminder_action_snoozed_text(current, follow_up),
@@ -488,7 +510,7 @@ def build_router(
             return
         parts = (callback.data or '').split(':')
         if len(parts) < 4:
-            await callback.answer('Некорректная пагинация', show_alert=True)
+            await callback.answer(invalid_pagination_text(), show_alert=True)
             return
         try:
             dispatch_id = int(parts[2])
@@ -508,12 +530,12 @@ def build_router(
                 ),
             )
         except ValueError:
-            await callback.answer('Некорректная пагинация', show_alert=True)
+            await callback.answer(invalid_pagination_text(), show_alert=True)
             return
         except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
             await _handle_callback_error(callback, error)
             return
-        await callback.answer('Показал другие ответы')
+        await callback.answer(pagination_updated_text())
 
     @router.callback_query(F.data.startswith('care:reply:'))
     async def callback_care_reply(callback: CallbackQuery) -> None:
@@ -522,7 +544,7 @@ def build_router(
             return
         parts = (callback.data or '').split(':')
         if len(parts) < 4:
-            await callback.answer('Некорректный быстрый ответ', show_alert=True)
+            await callback.answer(invalid_quick_reply_text(), show_alert=True)
             return
         try:
             dispatch_id = int(parts[2])
@@ -534,12 +556,12 @@ def build_router(
                 reply_code=reply_code,
             )
         except ValueError:
-            await callback.answer('Некорректный быстрый ответ', show_alert=True)
+            await callback.answer(invalid_quick_reply_text(), show_alert=True)
             return
         except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
             await _handle_callback_error(callback, error)
             return
-        await callback.answer('Ответ отправлен 💖')
+        await callback.answer(quick_reply_sent_text())
         await ui.safe_edit_callback_message(
             message=callback.message,
             text=care_reply_applied_text(result),
@@ -560,7 +582,7 @@ def build_router(
             return
         parts = (callback.data or '').split(':')
         if len(parts) < 3:
-            await callback.answer('Некорректное действие', show_alert=True)
+            await callback.answer(invalid_action_text(), show_alert=True)
             return
         try:
             dispatch_id = int(parts[2])
@@ -570,12 +592,12 @@ def build_router(
                 dispatch_id=dispatch_id,
             )
         except ValueError:
-            await callback.answer('Некорректное действие', show_alert=True)
+            await callback.answer(invalid_action_text(), show_alert=True)
             return
         except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
             await _handle_callback_error(callback, error)
             return
-        await callback.answer('Карточка скрыта')
+        await callback.answer(card_hidden_short_text())
         await ui.safe_edit_callback_message(
             message=callback.message,
             text=care_hidden_text(envelope),

@@ -150,19 +150,19 @@ class ReminderRepository:
                 (rule_id, pair_id),
             )
             if rule_row is None:
-                raise LookupError("Reminder rule is missing.")
+                raise LookupError("Правило напоминания не найдено.")
             rule = _row_to_rule(rule_row)
             if rule.creator_user_id != actor_user_id:
-                raise PermissionError("Only the creator can cancel this reminder.")
+                raise PermissionError("Только создатель может отменить это напоминание.")
             occurrence_row = await tx.fetchone(
                 "SELECT * FROM reminder_occurrences WHERE rule_id = ? ORDER BY id DESC LIMIT 1",
                 (rule_id,),
             )
             if occurrence_row is None:
-                raise LookupError("Reminder occurrence is missing.")
+                raise LookupError("Экземпляр напоминания не найден.")
             occurrence = _row_to_occurrence(occurrence_row)
             if occurrence.status is not ReminderOccurrenceStatus.SCHEDULED:
-                raise ValueError("Only scheduled reminders can be cancelled.")
+                raise ValueError("Можно отменить только запланированные напоминания.")
             await tx.execute(
                 """
                 UPDATE reminder_rules
@@ -393,7 +393,7 @@ class ReminderRepository:
                     ,
                     (
                         status,
-                        'Recovered after stale processing state.',
+                        'Восстановлено после зависшего состояния обработки.',
                         (next_attempt_at or now).isoformat(),
                         now.isoformat(),
                         occurrence.id,
@@ -409,12 +409,12 @@ class ReminderRepository:
                 (occurrence_id,),
             )
             if row is None:
-                raise LookupError("Reminder occurrence is missing.")
+                raise LookupError("Экземпляр напоминания не найден.")
             occurrence = _row_to_occurrence(row)
             if occurrence.recipient_user_id != actor_user_id:
-                raise PermissionError("Only the recipient can acknowledge this reminder.")
+                raise PermissionError("Только получатель может подтвердить это напоминание.")
             if occurrence.status is not ReminderOccurrenceStatus.DELIVERED:
-                raise ValueError("Reminder is not awaiting a recipient action.")
+                raise ValueError("Напоминание ещё не ожидает действие получателя.")
             await tx.execute(
                 """
                 UPDATE reminder_occurrences
@@ -440,12 +440,12 @@ class ReminderRepository:
                 (occurrence_id,),
             )
             if occurrence_row is None:
-                raise LookupError("Reminder occurrence is missing.")
+                raise LookupError("Экземпляр напоминания не найден.")
             occurrence = _row_to_occurrence(occurrence_row)
             if occurrence.recipient_user_id != actor_user_id:
-                raise PermissionError("Only the recipient can snooze this reminder.")
+                raise PermissionError("Только получатель может отложить это напоминание.")
             if occurrence.status is not ReminderOccurrenceStatus.DELIVERED:
-                raise ValueError("Reminder is not awaiting a recipient action.")
+                raise ValueError("Напоминание ещё не ожидает действие получателя.")
             await tx.execute(
                 """
                 UPDATE reminder_occurrences

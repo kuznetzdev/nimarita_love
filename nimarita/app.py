@@ -165,11 +165,11 @@ async def build_runtime(settings: Settings) -> Runtime:
     await bot.set_my_commands(
         [
             BotCommand(command='start', description='Запустить бота и зарегистрироваться'),
-            BotCommand(command='open', description='Открыть Mini App'),
+            BotCommand(command='open', description='Открыть мини-приложение'),
             BotCommand(command='pair', description='Создать приглашение в пару'),
             BotCommand(command='status', description='Показать состояние пары'),
-            BotCommand(command='remind', description='Быстро поставить one-time reminder'),
-            BotCommand(command='care', description='Открыть care layer и шаблоны заботы'),
+            BotCommand(command='remind', description='Быстро поставить одноразовое напоминание'),
+            BotCommand(command='care', description='Открыть слой заботы и шаблоны'),
             BotCommand(command='help', description='Справка'),
             BotCommand(command='unpair', description='Завершить активную пару'),
         ]

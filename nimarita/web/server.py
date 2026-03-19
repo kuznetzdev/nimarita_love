@@ -78,7 +78,7 @@ async def error_middleware(request: web.Request, handler: web.Handler) -> web.St
     except Exception:
         logger.exception('Unhandled web error for %s %s', request.method, request.path)
         return web.json_response(
-            {'ok': False, 'error': 'Internal server error.'},
+            {'ok': False, 'error': 'Внутренняя ошибка сервера.'},
             status=500,
             headers=NO_STORE_HEADERS,
         )
@@ -161,7 +161,7 @@ class WebServer:
         if self._frontend_path.exists():
             return web.FileResponse(self._frontend_path, headers=NO_STORE_HEADERS)
         return web.Response(
-            text='Mini App frontend is missing.',
+            text='Фронтенд мини-приложения не найден.',
             content_type='text/plain',
             headers=NO_STORE_HEADERS,
         )
@@ -285,7 +285,7 @@ class WebServer:
         elif invite_id is not None:
             _pair, inviter, invitee = await self._pairing_service.accept_invite_by_id(telegram_user_id, invite_id)
         else:
-            raise WebAuthError(status=400, message='Invite token or invite_id is required.')
+            raise WebAuthError(status=400, message='Нужен token приглашения или invite_id.')
         await self._notifier.notify_pair_confirmed(inviter, invitee)
         state = await self._pairing_service.get_dashboard(telegram_user_id)
         return web.json_response({'ok': True, 'state': self._serialize_state(state), 'reminders': [], 'care_history': []}, headers=NO_STORE_HEADERS)
@@ -300,7 +300,7 @@ class WebServer:
         elif invite_id is not None:
             _invite, inviter, rejector = await self._pairing_service.reject_invite_by_id(telegram_user_id, invite_id)
         else:
-            raise WebAuthError(status=400, message='Invite token or invite_id is required.')
+            raise WebAuthError(status=400, message='Нужен token приглашения или invite_id.')
         await self._notifier.notify_pair_rejected(inviter, rejector)
         state = await self._pairing_service.get_dashboard(telegram_user_id)
         return web.json_response({'ok': True, 'state': self._serialize_state(state)}, headers=NO_STORE_HEADERS)
@@ -348,7 +348,7 @@ class WebServer:
         try:
             rule_id = int(rule_id_text)
         except ValueError as error:
-            raise WebAuthError(status=400, message='Reminder rule id is invalid.') from error
+            raise WebAuthError(status=400, message='Некорректный идентификатор правила напоминания.') from error
         envelope = await self._reminder_service.cancel_reminder(telegram_user_id=telegram_user_id, rule_id=rule_id)
         reminders = [
             self._serialize_reminder(item)
@@ -384,7 +384,7 @@ class WebServer:
         body = await self._read_json(request)
         template_code = _read_optional_text(body.get('template_code'))
         if not template_code:
-            raise WebAuthError(status=400, message='template_code is required.')
+            raise WebAuthError(status=400, message='Нужно указать template_code.')
         envelope = await self._care_service.queue_template(
             telegram_user_id=telegram_user_id,
             template_code=template_code,
@@ -410,13 +410,13 @@ class WebServer:
         try:
             body = await request.json()
         except Exception as error:
-            raise WebAuthError(status=400, message='Malformed JSON body.') from error
+            raise WebAuthError(status=400, message='Некорректный JSON в теле запроса.') from error
         return body if isinstance(body, dict) else {}
 
     def _require_session(self, request: web.Request) -> int:
         header = request.headers.get('Authorization', '')
         if not header.startswith('Bearer '):
-            raise WebAuthError(status=401, message='Missing Bearer session token.')
+            raise WebAuthError(status=401, message='Отсутствует Bearer-токен сессии.')
         token = header.removeprefix('Bearer ').strip()
         return self._sessions.verify(token)
 

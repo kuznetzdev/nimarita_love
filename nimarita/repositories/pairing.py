@@ -136,7 +136,7 @@ class PairingRepository:
                     (invite_id, InviteStatus.PENDING.value),
                 )
                 if invite_row is None:
-                    raise LookupError("Invite is not pending.")
+                    raise LookupError("Приглашение уже не ожидает подтверждения.")
                 invite = _row_to_invite(invite_row)
                 pair = await _create_pair_with_checks(tx, invite=invite, invitee_user_id=invitee_user_id, now=now)
                 await tx.execute(
@@ -166,7 +166,7 @@ class PairingRepository:
                 (invite_id, InviteStatus.PENDING.value),
             )
             if invite_row is None:
-                raise LookupError("Invite is not pending.")
+                raise LookupError("Приглашение уже не ожидает подтверждения.")
             await tx.execute(
                 """
                 UPDATE pair_invites
@@ -225,14 +225,14 @@ async def _create_pair_with_checks(
     now: datetime,
 ) -> Pair:
     if invite.inviter_user_id == invitee_user_id:
-        raise ValueError("Cannot accept your own invite.")
+        raise ValueError("Нельзя принять собственное приглашение.")
 
     inviter_row = await tx.fetchone("SELECT * FROM users WHERE id = ?", (invite.inviter_user_id,))
     invitee_row = await tx.fetchone("SELECT * FROM users WHERE id = ?", (invitee_user_id,))
     if inviter_row is None or invitee_row is None:
-        raise ValueError("User record is missing.")
+        raise ValueError("Данные пользователя не найдены.")
     if not bool(inviter_row["started_bot"]) or not bool(invitee_row["started_bot"]):
-        raise ValueError("Both users must start the bot before pairing.")
+        raise ValueError("Оба пользователя должны хотя бы один раз запустить бота перед подтверждением пары.")
 
     active_for_inviter = await tx.fetchone(
         "SELECT 1 FROM pairs WHERE status = ? AND (user_a_id = ? OR user_b_id = ?) LIMIT 1",
@@ -243,7 +243,7 @@ async def _create_pair_with_checks(
         (PairStatus.ACTIVE.value, invitee_user_id, invitee_user_id),
     )
     if active_for_inviter is not None or active_for_invitee is not None:
-        raise ValueError("One of the users already has an active pair.")
+        raise ValueError("Один из пользователей уже состоит в активной паре.")
 
     user_a_id, user_b_id = sorted((invite.inviter_user_id, invitee_user_id))
     cursor = await tx.execute(

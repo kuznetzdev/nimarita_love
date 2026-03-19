@@ -102,5 +102,5 @@ class ReminderWorker:
             creator=failure.creator,
             recipient=failure.recipient,
             text=text,
-            error_text=failure.occurrence.last_error or 'unknown error',
+            error_text=failure.occurrence.last_error or 'неизвестная ошибка',
         )

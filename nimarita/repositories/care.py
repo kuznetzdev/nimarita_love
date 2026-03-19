@@ -341,7 +341,7 @@ class CareRepository:
                     (
                         status,
                         (next_attempt or now).isoformat(),
-                        'Recovered after stale processing state.',
+                        'Восстановлено после зависшего состояния обработки.',
                         now.isoformat(),
                         dispatch.id,
                     ),
@@ -363,14 +363,14 @@ class CareRepository:
         async with self._db.transaction() as tx:
             row = await tx.fetchone('SELECT * FROM care_dispatches WHERE id = ?', (dispatch_id,))
             if row is None:
-                raise LookupError('Care dispatch is missing.')
+                raise LookupError('Сообщение заботы не найдено.')
             dispatch = _row_to_dispatch(row)
             if dispatch.recipient_user_id != recipient_user_id:
-                raise PermissionError('Only the recipient can answer this care message.')
+                raise PermissionError('Только получатель может ответить на это сообщение заботы.')
             if dispatch.status in {CareDispatchStatus.FAILED, CareDispatchStatus.PENDING, CareDispatchStatus.PROCESSING}:
-                raise ValueError('Care dispatch is not ready for a quick reply yet.')
+                raise ValueError('Сообщение заботы пока не готово к быстрому ответу.')
             if dispatch.response_code is not None:
-                raise ValueError('A quick reply has already been chosen for this care message.')
+                raise ValueError('Для этого сообщения заботы быстрый ответ уже выбран.')
             await tx.execute(
                 """
                 UPDATE care_dispatches

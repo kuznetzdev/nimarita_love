@@ -252,7 +252,7 @@ class CareService:
         sender = await self._users.get_by_id(dispatch.sender_user_id)
         recipient = await self._users.get_by_id(dispatch.recipient_user_id)
         if sender is None or recipient is None:
-            raise NotFoundError('Не удалось восстановить участников care-сообщения.')
+            raise NotFoundError('Не удалось восстановить участников сообщения заботы.')
         return CareEnvelope(dispatch=dispatch, sender=sender, recipient=recipient)
 
     async def _enforce_rate_limits(self, *, user_id: int, pair_id: int, template_code: str) -> None:
@@ -263,14 +263,14 @@ class CareService:
             since=now - timedelta(minutes=1),
         )
         if minute_count >= self._settings.care_per_minute_limit:
-            raise ConflictError('Слишком много care-сообщений за последнюю минуту. Дай чату немного воздуха.')
+            raise ConflictError('Слишком много сообщений заботы за последнюю минуту. Дай чату немного воздуха.')
         hour_count = await self._care.count_sent_since(
             sender_user_id=user_id,
             pair_id=pair_id,
             since=now - timedelta(hours=1),
         )
         if hour_count >= self._settings.care_per_hour_limit:
-            raise ConflictError('Достигнут часовой лимит care-сообщений. Лучше дать переписке подышать.')
+            raise ConflictError('Достигнут часовой лимит сообщений заботы. Лучше дать переписке подышать.')
         duplicated = await self._care.has_recent_duplicate(
             sender_user_id=user_id,
             pair_id=pair_id,
@@ -284,7 +284,7 @@ class CareService:
         sender = await self._users.get_by_id(dispatch.sender_user_id)
         recipient = await self._users.get_by_id(dispatch.recipient_user_id)
         if sender is None or recipient is None:
-            raise NotFoundError('Участники care-сообщения не найдены.')
+            raise NotFoundError('Участники сообщения заботы не найдены.')
         return CareEnvelope(dispatch=dispatch, sender=sender, recipient=recipient)
 
     async def _build_history(self, pair_id: int, *, limit: int) -> list[CareEnvelope]:

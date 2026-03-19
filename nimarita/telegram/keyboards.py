@@ -53,7 +53,7 @@ def invite_preview_keyboard(invite_id: int, webapp_url: str | None = None) -> In
     builder.row(InlineKeyboardButton(text='Подтвердить пару 💌', callback_data=f'invite:accept:{invite_id}'))
     builder.row(InlineKeyboardButton(text='Отклонить', callback_data=f'invite:reject:{invite_id}'))
     if webapp_url:
-        builder.row(InlineKeyboardButton(text='Открыть Mini App', web_app=WebAppInfo(url=webapp_url)))
+        builder.row(InlineKeyboardButton(text='Открыть мини-приложение', web_app=WebAppInfo(url=webapp_url)))
     return builder.as_markup()
 
 
@@ -75,7 +75,7 @@ def reminder_actions_keyboard(occurrence_id: int, app_link: str | None) -> Inlin
         InlineKeyboardButton(text='Отложить на 10 минут ⏰', callback_data=f'reminder:snooze:{occurrence_id}:10'),
     )
     if app_link:
-        builder.row(InlineKeyboardButton(text='Открыть Mini App 💖', url=app_link))
+        builder.row(InlineKeyboardButton(text='Открыть мини-приложение 💖', url=app_link))
     return builder.as_markup()
 
 
@@ -126,6 +126,6 @@ def care_command_keyboard(webapp_url: str | None) -> InlineKeyboardMarkup | None
         return None
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text='Открыть care layer 💌', web_app=WebAppInfo(url=webapp_url))]
+            [InlineKeyboardButton(text='Открыть слой заботы 💌', web_app=WebAppInfo(url=webapp_url))]
         ]
     )

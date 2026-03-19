@@ -101,5 +101,5 @@ class CareWorker:
             sender=failure.sender,
             recipient=failure.recipient,
             template_title=failure.dispatch.title,
-            error_text=failure.dispatch.last_error or 'unknown error',
+            error_text=failure.dispatch.last_error or 'неизвестная ошибка',
         )
