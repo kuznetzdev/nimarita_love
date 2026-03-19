@@ -237,7 +237,7 @@
   // ========================================
   // 🔴 ВАЖНО: После деплоя на GitHub Pages замени пустую строку на URL твоего бэкенда
   // Например: const API_BASE = 'https://your-backend.railway.app';
-  const API_BASE = ''; // оставь пустым для локальной разработки или укажи URL продакшн-сервера
+  const API_BASE = 'PLACEHOLDER_API_BASE'; // оставь пустым для локальной разработки или укажи URL продакшн-сервера
 
       const tg = window.Telegram?.WebApp;
       const state = {
@@ -750,18 +750,13 @@
         tg?.ready?.();
         tg?.expand?.();
 
-        if (!tg) {
-          showError('Mini App нужно открывать внутри Telegram.');
-          return;
-        }
-
         el.reminderMeta.textContent = `Твой timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown'}`;
 
         try {
           const auth = await api('/api/v1/auth', {
             method: 'POST',
             body: JSON.stringify({
-              init_data: tg.initData,
+              init_data: tg?.initData ?? '',
               start_param: getStartParam(),
             }),
           });
