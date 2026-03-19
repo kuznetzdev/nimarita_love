@@ -232,6 +232,13 @@
     </div>
 
     <script>
+        // ========================================
+  // API Configuration
+  // ========================================
+  // 🔴 ВАЖНО: После деплоя на GitHub Pages замени пустую строку на URL твоего бэкенда
+  // Например: const API_BASE = 'https://your-backend.railway.app';
+  const API_BASE = ''; // оставь пустым для локальной разработки или укажи URL продакшн-сервера
+
       const tg = window.Telegram?.WebApp;
       const state = {
         sessionToken: null,
@@ -319,7 +326,7 @@
         if (state.sessionToken) {
           headers.set('Authorization', `Bearer ${state.sessionToken}`);
         }
-        const response = await fetch(path, { ...options, headers });
+        const response = await fetch(API_BASE + path, { ...options, headers });
         const data = await response.json();
         if (!response.ok || !data.ok) {
           throw new Error(data.error || 'Запрос завершился ошибкой.');
