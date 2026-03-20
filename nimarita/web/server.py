@@ -28,6 +28,7 @@ NO_STORE_HEADERS = {'Cache-Control': 'no-store'}
 API_CORS_ALLOW_METHODS = 'GET, POST, OPTIONS'
 API_CORS_ALLOW_HEADERS = 'Authorization, Content-Type'
 API_CORS_MAX_AGE_SECONDS = '86400'
+_API_BASE_PLACEHOLDER = 'PLACEHOLDER_API_BASE'
 
 
 def _build_cors_headers(request: web.Request) -> dict[str, str]:
@@ -149,9 +150,22 @@ class WebServer:
             secret=settings.session_secret,
             ttl_seconds=settings.session_ttl_seconds,
         )
+        self._frontend_html: str | None = None
         self._app = self._build_app()
         self._runner: web.AppRunner | None = None
         self._site: web.TCPSite | None = None
+
+    def _get_frontend_html(self) -> str | None:
+        """Read and cache index.html with PLACEHOLDER_API_BASE substituted."""
+        if self._frontend_html is not None:
+            return self._frontend_html
+        if not self._frontend_path.exists():
+            return None
+        raw = self._frontend_path.read_text(encoding='utf-8')
+        api_base = self._settings.webapp_public_url or ''
+        self._frontend_html = raw.replace(_API_BASE_PLACEHOLDER, api_base)
+        logger.info('Frontend loaded: substituted API_BASE=%r', api_base)
+        return self._frontend_html
 
     async def start(self) -> None:
         if not self._settings.webapp_enabled or self._runner is not None:
@@ -193,11 +207,17 @@ class WebServer:
 
     async def _index(self, request: web.Request) -> web.Response:
         del request
-        if self._frontend_path.exists():
-            return web.FileResponse(self._frontend_path, headers=NO_STORE_HEADERS)
+        html = self._get_frontend_html()
+        if html is None:
+            return web.Response(
+                text='Фронтенд мини-приложения не найден.',
+                content_type='text/plain',
+                headers=NO_STORE_HEADERS,
+            )
         return web.Response(
-            text='Фронтенд мини-приложения не найден.',
-            content_type='text/plain',
+            text=html,
+            content_type='text/html',
+            charset='utf-8',
             headers=NO_STORE_HEADERS,
         )
 
