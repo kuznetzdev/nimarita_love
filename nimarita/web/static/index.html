@@ -235,14 +235,14 @@
     </div>
 
     <script>
-        // ========================================
-  // API Configuration
-  // ========================================
-  const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
+      // ========================================
+      // API Configuration
+      // ========================================
+      const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
 
       function normalizeApiBase(value) {
         const normalized = String(value || '').trim();
-        if (!normalized || normalized === 'PLACEHOLDER_API_BASE') return null;
+        if (!normalized) return null;
         return normalized.replace(/\/+$/, '');
       }
 
@@ -323,8 +323,7 @@
       }
 
       function buildApiConfigError() {
-        const current = String(RAW_API_BASE || '').trim() || '(пусто)';
-        return `Mini App не настроен.\nAPI_BASE: ${current}\nПроверь GitHub Pages deploy и замену PLACEHOLDER_API_BASE.`;
+        return 'Mini App не настроен: API_BASE пустой. Обратись к администратору.';
       }
 
       function showError(message, { alert = true } = {}) {
@@ -362,10 +361,10 @@
           });
         } catch (error) {
           if (error?.name === 'AbortError') {
-            throw new Error(`Сервер не ответил за ${Math.round(timeoutMs / 1000)} сек.\nAPI: ${API_BASE || '(не задан)'}\nRailway может просыпаться после простоя.`);
+            throw new Error(`Сервер не ответил за ${Math.round(timeoutMs / 1000)} сек.\nRailway может просыпаться после простоя — попробуй ещё раз через 10 сек.`);
           }
           if (error instanceof TypeError) {
-            throw new Error(`Нет связи с сервером.\nAPI: ${API_BASE || '(не задан)'}\nПроверь CORS, GitHub Pages deploy и доступность Railway.`);
+            throw new Error(`Нет связи с сервером.\nAPI: ${API_BASE}\nПроверь доступность Railway.`);
           }
           throw error;
         } finally {
@@ -387,13 +386,13 @@
 
         if (!response.ok) {
           const message = data?.error || responseText || `HTTP ${response.status}`;
-          throw new Error(`${message}\nAPI: ${API_BASE || '(не задан)'}`);
+          throw new Error(message);
         }
         if (!data || typeof data !== 'object') {
-          throw new Error(`Сервер вернул неожиданный ответ.\nAPI: ${API_BASE || '(не задан)'}\nHTTP: ${response.status}`);
+          throw new Error(`Сервер вернул неожиданный ответ. HTTP: ${response.status}`);
         }
         if (!data.ok) {
-          throw new Error(`${data.error || 'Запрос завершился ошибкой.'}\nAPI: ${API_BASE || '(не задан)'}`);
+          throw new Error(data.error || 'Запрос завершился ошибкой.');
         }
         return data;
       }
@@ -829,20 +828,11 @@
 
         el.reminderMeta.textContent = `Твой timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown'}`;
 
-        if (!tg) {
-          showError('Mini App должен открываться внутри Telegram.', { alert: false });
-          return;
-        }
-        if (!tg.initData) {
-          showError('Telegram не передал initData. Открой приложение через бота, а не обычной ссылкой.', { alert: false });
-          return;
-        }
-
         try {
           const auth = await api('/api/v1/auth', {
             method: 'POST',
             body: JSON.stringify({
-              init_data: tg.initData,
+              init_data: tg?.initData ?? '',
               start_param: getStartParam(),
             }),
           });
