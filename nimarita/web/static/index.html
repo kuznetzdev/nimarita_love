@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ru">
   <head>
@@ -7,57 +8,134 @@
     <script src="https://telegram.org/js/telegram-web-app.js?61"></script>
     <style>
       :root {
-        --bg: #ffffff;
-        --surface: #f4f6fb;
-        --surface-2: #edf2ff;
+        color-scheme: light;
+        --bg: #f3f6fb;
+        --surface: #edf3ff;
+        --surface-2: #e8f0ff;
         --card: #ffffff;
-        --text: #162033;
-        --muted: #5f6b7d;
-        --border: rgba(22, 32, 51, 0.08);
+        --input: #ffffff;
+        --text: #10233a;
+        --muted: #5c6d84;
+        --subtle: #7d8ca3;
+        --border: rgba(16, 35, 58, 0.12);
+        --border-strong: rgba(16, 35, 58, 0.20);
         --accent: #4c8bf5;
         --accent-soft: rgba(76, 139, 245, 0.12);
-        --danger: #d14d72;
-        --danger-soft: rgba(209, 77, 114, 0.12);
-        --success: #2f9d69;
-        --success-soft: rgba(47, 157, 105, 0.12);
-        --warning: #d68720;
-        --warning-soft: rgba(214, 135, 32, 0.14);
-        --shadow: 0 8px 22px rgba(21, 31, 52, 0.05);
+        --accent-strong: rgba(76, 139, 245, 0.18);
+        --button-text: #ffffff;
+        --danger: #cf4d72;
+        --danger-soft: rgba(207, 77, 114, 0.14);
+        --success: #239563;
+        --success-soft: rgba(35, 149, 99, 0.14);
+        --warning: #c77919;
+        --warning-soft: rgba(199, 121, 25, 0.14);
+        --shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+        --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.05);
+        --focus: 0 0 0 4px rgba(76, 139, 245, 0.18);
+      }
+
+      :root[data-scheme="dark"] {
+        color-scheme: dark;
+        --bg: #0b1220;
+        --surface: #101a2f;
+        --surface-2: #13203a;
+        --card: #121c31;
+        --input: #0b1528;
+        --text: #f8fbff;
+        --muted: #a8b4c7;
+        --subtle: #8694ac;
+        --border: rgba(148, 163, 184, 0.20);
+        --border-strong: rgba(148, 163, 184, 0.30);
+        --accent: #6aa4ff;
+        --accent-soft: rgba(106, 164, 255, 0.22);
+        --accent-strong: rgba(106, 164, 255, 0.30);
+        --button-text: #081223;
+        --danger: #ff8fac;
+        --danger-soft: rgba(255, 143, 172, 0.18);
+        --success: #5cd7a0;
+        --success-soft: rgba(92, 215, 160, 0.18);
+        --warning: #ffc46f;
+        --warning-soft: rgba(255, 196, 111, 0.18);
+        --shadow: 0 18px 44px rgba(2, 6, 23, 0.42);
+        --shadow-soft: 0 10px 24px rgba(2, 6, 23, 0.28);
+        --focus: 0 0 0 4px rgba(106, 164, 255, 0.20);
       }
 
       * { box-sizing: border-box; }
 
+      html, body {
+        min-height: 100%;
+      }
+
       body {
         margin: 0;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
         background: var(--bg);
         color: var(--text);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(180deg, var(--accent-soft), transparent 190px);
       }
 
       .app {
+        position: relative;
         min-height: 100vh;
-        padding: calc(20px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
-        background: linear-gradient(180deg, rgba(76, 139, 245, 0.10), transparent 160px), var(--bg);
+        padding: calc(16px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
       }
 
       .stack {
+        position: relative;
+        z-index: 1;
+        width: min(100%, 760px);
+        margin: 0 auto;
         display: grid;
         gap: 14px;
-        max-width: 760px;
-        margin: 0 auto;
       }
 
-      .card,
-      .hero {
-        padding: 16px;
-        border-radius: 20px;
+      .hero,
+      .card {
+        padding: 18px;
+        border-radius: 24px;
         background: var(--card);
         border: 1px solid var(--border);
-        box-shadow: var(--shadow);
+        box-shadow: var(--shadow-soft);
       }
 
       .hero {
-        background: linear-gradient(180deg, rgba(76, 139, 245, 0.12), transparent 100%), var(--surface);
+        background: linear-gradient(180deg, var(--accent-soft), transparent 100%), var(--card);
+      }
+
+      .notice-card {
+        padding: 14px 16px;
+      }
+
+      .notice-success {
+        background: linear-gradient(180deg, var(--success-soft), transparent 140%), var(--card);
+        border-color: transparent;
+      }
+
+      .notice-error {
+        background: linear-gradient(180deg, var(--danger-soft), transparent 140%), var(--card);
+        border-color: transparent;
+      }
+
+      .notice-warning {
+        background: linear-gradient(180deg, var(--warning-soft), transparent 140%), var(--card);
+        border-color: transparent;
       }
 
       .badge,
@@ -65,19 +143,23 @@
       .tiny-pill {
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
         border-radius: 999px;
         font-size: 12px;
         font-weight: 700;
+        line-height: 1;
       }
 
       .badge,
       .pill {
-        padding: 6px 10px;
+        padding: 7px 11px;
       }
 
       .tiny-pill {
-        padding: 5px 8px;
+        padding: 6px 10px;
+        background: var(--surface);
+        color: var(--text);
       }
 
       .badge {
@@ -92,8 +174,7 @@
 
       .pill.status-scheduled,
       .pill.status-processing,
-      .pill.status-pending,
-      .notice-warning {
+      .pill.status-pending {
         background: var(--warning-soft);
         color: var(--warning);
       }
@@ -101,74 +182,89 @@
       .pill.status-delivered,
       .pill.status-acknowledged,
       .pill.status-sent,
-      .pill.status-responded,
-      .notice-success {
+      .pill.status-responded {
         background: var(--success-soft);
         color: var(--success);
       }
 
       .pill.status-failed,
-      .pill.status-cancelled,
-      .notice-error {
+      .pill.status-cancelled {
         background: var(--danger-soft);
         color: var(--danger);
       }
 
       h1 {
-        margin: 12px 0 8px;
-        font-size: 28px;
-        line-height: 1.1;
+        margin: 12px 0 6px;
+        font-size: 30px;
+        line-height: 1.08;
+        letter-spacing: -0.02em;
       }
 
       h2 {
         margin: 0;
-        font-size: 20px;
+        font-size: 21px;
+        line-height: 1.15;
+        letter-spacing: -0.01em;
       }
 
       h3 {
         margin: 0;
         font-size: 16px;
+        line-height: 1.2;
       }
 
       p {
         margin: 0;
-        line-height: 1.5;
+        line-height: 1.55;
         color: var(--muted);
       }
 
+      .strong {
+        color: var(--text);
+        font-weight: 700;
+      }
+
       .muted { color: var(--muted); }
-      .strong { color: var(--text); font-weight: 700; }
       .hidden { display: none !important; }
       .error-text { color: var(--danger); font-weight: 700; white-space: pre-wrap; }
 
       .header-row,
       .row,
-      .split {
+      .split,
+      .status-line,
+      .toolbar,
+      .quick-replies {
         display: flex;
         gap: 10px;
-        align-items: center;
-        justify-content: space-between;
         flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .header-row,
+      .row,
+      .split {
+        justify-content: space-between;
       }
 
       .grid,
       .actions,
       .list,
-      .chips,
       .profile-summary {
         display: grid;
-        gap: 10px;
+        gap: 12px;
+      }
+
+      .actions {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       }
 
       .profile-summary { gap: 6px; }
+      .tight { gap: 4px; }
 
-      .toolbar,
-      .choice-row,
-      .quick-replies {
-        display: flex;
+      .choice-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
         gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
       }
 
       .divider {
@@ -178,48 +274,67 @@
       }
 
       button {
-        border: 0;
-        border-radius: 14px;
-        padding: 13px 14px;
-        font: inherit;
+        min-height: 46px;
+        border-radius: 16px;
+        border: 1px solid transparent;
+        padding: 12px 16px;
         font-weight: 700;
         cursor: pointer;
-        transition: transform 0.12s ease, opacity 0.12s ease;
+        transition: transform 0.12s ease, opacity 0.12s ease, background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
       }
 
-      button:active { transform: translateY(1px); }
-      button[disabled] { opacity: 0.58; cursor: default; transform: none; }
+      button:active {
+        transform: translateY(1px);
+      }
+
+      button[disabled] {
+        opacity: 0.62;
+        cursor: wait;
+        transform: none;
+      }
+
+      button:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible,
+      select:focus-visible {
+        outline: none;
+        box-shadow: var(--focus);
+      }
 
       .primary {
         background: var(--accent);
-        color: white;
+        color: var(--button-text);
       }
 
       .secondary,
       .choice {
         background: var(--surface);
         color: var(--text);
+        border-color: var(--border);
       }
 
       .choice.is-selected {
         background: var(--accent-soft);
         color: var(--accent);
+        border-color: transparent;
       }
 
       .danger {
         background: var(--danger-soft);
         color: var(--danger);
+        border-color: transparent;
       }
 
       .success {
         background: var(--success-soft);
         color: var(--success);
+        border-color: transparent;
       }
 
       .ghost {
         background: transparent;
         color: var(--accent);
-        border: 1px solid var(--border);
+        border-color: var(--border);
       }
 
       label {
@@ -233,84 +348,99 @@
       textarea,
       select {
         width: 100%;
+        min-height: 48px;
+        padding: 12px 14px;
+        border-radius: 16px;
         border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 12px 13px;
-        background: var(--bg);
+        background: var(--input);
         color: var(--text);
-        font: inherit;
+      }
+
+      input::placeholder,
+      textarea::placeholder {
+        color: var(--subtle);
+        opacity: 1;
+      }
+
+      select {
+        appearance: none;
+        background-image:
+          linear-gradient(45deg, transparent 50%, var(--subtle) 50%),
+          linear-gradient(135deg, var(--subtle) 50%, transparent 50%);
+        background-position:
+          calc(100% - 22px) calc(50% - 2px),
+          calc(100% - 16px) calc(50% - 2px);
+        background-size: 6px 6px, 6px 6px;
+        background-repeat: no-repeat;
+        padding-right: 42px;
       }
 
       textarea {
-        min-height: 108px;
+        min-height: 124px;
         resize: vertical;
       }
 
       .meta {
         font-size: 12px;
+        line-height: 1.5;
         color: var(--muted);
-        line-height: 1.45;
-      }
-
-      .notice-card {
-        padding: 12px 14px;
       }
 
       .linkbox,
-      .item,
+      .history-item,
+      .template-item,
+      .reminder-item,
+      .reply-box,
+      .empty-state {
+        border-radius: 18px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        padding: 14px;
+      }
+
+      .linkbox,
       .history-item,
       .template-item,
       .reminder-item,
       .reply-box {
-        border-radius: 16px;
-        border: 1px solid var(--border);
-        background: var(--surface);
-        padding: 12px;
-      }
-
-      .linkbox,
-      .item,
-      .history-item,
-      .template-item,
-      .reminder-item {
         display: grid;
-        gap: 8px;
+        gap: 10px;
       }
 
       .reply-box {
-        display: grid;
-        gap: 8px;
         background: var(--card);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
       }
 
-      .history-item.inbound { border-left: 4px solid rgba(47, 157, 105, 0.45); }
-      .history-item.outbound { border-left: 4px solid rgba(76, 139, 245, 0.45); }
+      .history-item.inbound { border-left: 4px solid rgba(35, 149, 99, 0.36); }
+      .history-item.outbound { border-left: 4px solid rgba(76, 139, 245, 0.36); }
+
+      .template-title,
+      .history-title,
+      .reminder-title {
+        font-weight: 700;
+        color: var(--text);
+      }
 
       .template-body,
       .history-body,
       .reply-body,
       .reminder-body {
         color: var(--muted);
-        line-height: 1.45;
-      }
-
-      .template-title,
-      .history-title,
-      .reminder-title {
-        font-weight: 700;
+        line-height: 1.5;
       }
 
       .category-group {
         display: grid;
-        gap: 8px;
+        gap: 10px;
       }
 
       .category-title {
         font-size: 13px;
         font-weight: 700;
-        color: var(--muted);
-        text-transform: uppercase;
         letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted);
       }
 
       .emoji-input {
@@ -318,36 +448,55 @@
         text-align: center;
       }
 
-      .copy-line {
-        display: grid;
-        gap: 8px;
-      }
-
       .copy-value {
         display: block;
         width: 100%;
         overflow-wrap: anywhere;
-        background: var(--card);
-        padding: 10px 12px;
-        border-radius: 12px;
-        color: var(--text);
+        padding: 12px 14px;
+        border-radius: 16px;
         border: 1px solid var(--border);
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        font-size: 12px;
+        background: var(--input);
+        color: var(--text);
+        font-size: 13px;
+        line-height: 1.45;
       }
 
-      .status-line {
-        display: flex;
+      .copy-actions {
+        display: grid;
         gap: 8px;
-        align-items: center;
-        flex-wrap: wrap;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       }
 
       .empty-state {
-        padding: 12px;
-        border-radius: 14px;
-        background: var(--surface);
         color: var(--muted);
+      }
+
+      @media (max-width: 560px) {
+        .app {
+          padding-left: 12px;
+          padding-right: 12px;
+        }
+
+        .hero,
+        .card {
+          padding: 16px;
+          border-radius: 22px;
+        }
+
+        h1 {
+          font-size: 27px;
+        }
+
+        .header-row > .toolbar {
+          width: 100%;
+        }
+
+        .toolbar > button,
+        .actions > button,
+        .copy-actions > button,
+        .quick-replies > button {
+          flex: 1 1 100%;
+        }
       }
     </style>
   </head>
@@ -355,28 +504,29 @@
     <div class="app">
       <div class="stack">
         <section class="hero">
-          <span class="badge">Наше пространство 💖</span>
-          <h1>Пара, напоминания и заботливые сообщения</h1>
+          <span class="badge">Nimarita Love</span>
+          <h1>Наше пространство</h1>
           <p>
-            Здесь можно подтверждать пару, видеть кто есть кто, ставить разовые и регулярные напоминания,
-            отправлять готовые или свои сообщения заботы и отвечать на них прямо из приложения.
+            Здесь можно подтвердить пару, настроить роли, отправлять напоминания и тёплые сообщения —
+            без лишних экранов и технического шума.
           </p>
         </section>
 
-        <section id="notice" class="card notice-card hidden">
+        <section id="notice" class="card notice-card hidden" aria-live="polite">
           <p id="notice-text" class="strong"></p>
         </section>
 
         <section id="loading" class="card">
-          <h2>Открываю пространство</h2>
+          <span class="badge">Открываю приложение</span>
+          <h2>Подожди пару секунд</h2>
           <p>
-            Проверяю Telegram-вход и загружаю ваши данные. Если сервис в Railway только просыпается,
-            первый ответ может прийти чуть медленнее обычного.
+            Проверяю вход через Telegram и загружаю ваши данные. Если Railway только проснулся,
+            первый ответ может прийти немного позже.
           </p>
         </section>
 
         <section id="error" class="card hidden">
-          <h2>Не получилось открыть приложение</h2>
+          <h2>Не получилось открыть пространство</h2>
           <p id="error-text" class="error-text"></p>
           <div class="actions">
             <button id="retry-bootstrap" class="secondary">Попробовать ещё раз</button>
@@ -385,11 +535,14 @@
 
         <section id="profile-card" class="card hidden">
           <div class="header-row">
-            <h2>Кто есть кто</h2>
-            <span class="badge">Для понятных ролей и подсказок</span>
+            <div class="grid tight">
+              <h2>Кто есть кто</h2>
+              <p class="meta">Это помогает показывать понятные подсказки и обращаться друг к другу естественно.</p>
+            </div>
+            <span class="badge">Роли пары</span>
           </div>
           <div class="profile-summary">
-            <p id="role-summary"></p>
+            <p id="role-summary" class="strong"></p>
             <p id="partner-role-summary" class="meta"></p>
           </div>
           <div class="choice-row">
@@ -403,16 +556,16 @@
           <h2>Пары пока нет</h2>
           <p>
             Создай приглашение и отправь его партнёру. После подтверждения откроются общие напоминания
-            и заботливые сообщения.
+            и сообщения.
           </p>
           <div class="actions">
-            <button id="create-invite" class="primary">Создать приглашение 💞</button>
+            <button id="create-invite" class="primary">Создать приглашение</button>
           </div>
           <div id="invite-links" class="linkbox hidden"></div>
         </section>
 
         <section id="outgoing" class="card hidden">
-          <h2>Приглашение уже создано</h2>
+          <h2>Приглашение готово</h2>
           <p id="outgoing-text"></p>
           <div class="actions">
             <button id="refresh-invite" class="secondary">Создать новое приглашение</button>
@@ -421,17 +574,17 @@
         </section>
 
         <section id="incoming" class="card hidden">
-          <h2>Тебя приглашают в пару</h2>
+          <h2>Вас приглашают в пару</h2>
           <p id="incoming-text"></p>
           <div class="actions">
-            <button id="accept-invite" class="primary">Подтвердить пару 💌</button>
+            <button id="accept-invite" class="primary">Подтвердить пару</button>
             <button id="reject-invite" class="danger">Отклонить</button>
           </div>
         </section>
 
         <section id="active" class="card hidden">
           <div class="header-row">
-            <span class="badge">Связь подтверждена</span>
+            <span class="badge">Пара подтверждена</span>
             <div class="toolbar">
               <button id="refresh-state" class="secondary" type="button">Обновить</button>
               <button id="unpair" class="danger" type="button">Разорвать пару</button>
@@ -446,7 +599,10 @@
         </section>
 
         <section id="reminder-form-card" class="card hidden">
-          <h2>Новое напоминание</h2>
+          <div class="header-row">
+            <h2>Новое напоминание</h2>
+            <span class="meta">Отправится партнёру</span>
+          </div>
           <div class="grid">
             <label>
               Текст напоминания
@@ -469,7 +625,7 @@
             </div>
             <p id="reminder-meta" class="meta"></p>
             <div class="actions">
-              <button id="create-reminder" class="primary" type="button">Сохранить напоминание ⏰</button>
+              <button id="create-reminder" class="primary" type="button">Сохранить напоминание</button>
             </div>
           </div>
         </section>
@@ -485,20 +641,23 @@
 
         <section id="care-browser-card" class="card hidden">
           <div class="header-row">
-            <h2>Заботливые сообщения</h2>
+            <h2>Тёплые сообщения</h2>
             <span id="care-counter" class="meta"></span>
           </div>
-          <p>Выбери категорию и отправь подходящее сообщение одним нажатием.</p>
+          <p>Выбери готовый вариант или отправь случайное сообщение одним нажатием.</p>
           <div class="toolbar">
             <select id="care-category"></select>
-            <button id="care-random" class="secondary" type="button">Случайное сообщение 💌</button>
+            <button id="care-random" class="secondary" type="button">Случайное сообщение</button>
           </div>
           <div class="divider"></div>
           <div id="care-template-list" class="list"></div>
         </section>
 
         <section id="custom-care-card" class="card hidden">
-          <h2>Своё заботливое сообщение</h2>
+          <div class="grid tight">
+            <h2>Своё сообщение</h2>
+            <p class="meta">Можно написать что-то совсем по-своему.</p>
+          </div>
           <div class="grid">
             <div class="split">
               <label style="flex: 0 0 92px;">
@@ -515,15 +674,15 @@
               <textarea id="custom-care-body" placeholder="Напиши своё тёплое сообщение партнёру"></textarea>
             </label>
             <div class="actions">
-              <button id="send-custom-care" class="primary" type="button">Отправить своё сообщение ✨</button>
+              <button id="send-custom-care" class="primary" type="button">Отправить сообщение</button>
             </div>
           </div>
         </section>
 
         <section id="care-history-card" class="card hidden">
           <div class="header-row">
-            <h2>История заботы</h2>
-            <button id="care-history-refresh" class="secondary" type="button">Обновить историю</button>
+            <h2>Последние сообщения</h2>
+            <button id="care-history-refresh" class="secondary" type="button">Обновить</button>
           </div>
           <div id="empty-care-history" class="empty-state">История пока пустая.</div>
           <div id="care-history-list" class="list"></div>
@@ -532,7 +691,7 @@
     </div>
 
     <script>
-      const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
+const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
       const tg = window.Telegram?.WebApp || null;
 
       function normalizeApiBase(value) {
@@ -645,19 +804,136 @@
         { emoji: '🫶', title: 'Люблю тебя', message: 'Люблю тебя и беру твоё тепло с собой.' },
       ];
 
-      function applyTheme() {
-        const theme = tg?.themeParams || {};
-        const root = document.documentElement;
-        if (theme.bg_color) root.style.setProperty('--bg', theme.bg_color);
-        if (theme.secondary_bg_color) {
-          root.style.setProperty('--surface', theme.secondary_bg_color);
-          root.style.setProperty('--surface-2', theme.secondary_bg_color);
-        }
-        if (theme.text_color) root.style.setProperty('--text', theme.text_color);
-        if (theme.hint_color) root.style.setProperty('--muted', theme.hint_color);
-        if (theme.button_color) root.style.setProperty('--accent', theme.button_color);
-        if (theme.button_text_color) root.style.setProperty('--button-text', theme.button_text_color);
-      }
+      const THEME_TOKENS = {
+  light: {
+    'bg': '#f3f6fb',
+    'surface': '#edf3ff',
+    'surface-2': '#e8f0ff',
+    'card': '#ffffff',
+    'input': '#ffffff',
+    'text': '#10233a',
+    'muted': '#5c6d84',
+    'subtle': '#7d8ca3',
+    'border': 'rgba(16, 35, 58, 0.12)',
+    'border-strong': 'rgba(16, 35, 58, 0.20)',
+    'accent': '#4c8bf5',
+    'accent-soft': 'rgba(76, 139, 245, 0.12)',
+    'accent-strong': 'rgba(76, 139, 245, 0.18)',
+    'button-text': '#ffffff',
+    'danger': '#cf4d72',
+    'danger-soft': 'rgba(207, 77, 114, 0.14)',
+    'success': '#239563',
+    'success-soft': 'rgba(35, 149, 99, 0.14)',
+    'warning': '#c77919',
+    'warning-soft': 'rgba(199, 121, 25, 0.14)',
+    'shadow': '0 18px 44px rgba(15, 23, 42, 0.08)',
+    'shadow-soft': '0 10px 24px rgba(15, 23, 42, 0.05)',
+    'focus': '0 0 0 4px rgba(76, 139, 245, 0.18)',
+  },
+  dark: {
+    'bg': '#0b1220',
+    'surface': '#101a2f',
+    'surface-2': '#13203a',
+    'card': '#121c31',
+    'input': '#0b1528',
+    'text': '#f8fbff',
+    'muted': '#a8b4c7',
+    'subtle': '#8694ac',
+    'border': 'rgba(148, 163, 184, 0.20)',
+    'border-strong': 'rgba(148, 163, 184, 0.30)',
+    'accent': '#6aa4ff',
+    'accent-soft': 'rgba(106, 164, 255, 0.22)',
+    'accent-strong': 'rgba(106, 164, 255, 0.30)',
+    'button-text': '#081223',
+    'danger': '#ff8fac',
+    'danger-soft': 'rgba(255, 143, 172, 0.18)',
+    'success': '#5cd7a0',
+    'success-soft': 'rgba(92, 215, 160, 0.18)',
+    'warning': '#ffc46f',
+    'warning-soft': 'rgba(255, 196, 111, 0.18)',
+    'shadow': '0 18px 44px rgba(2, 6, 23, 0.42)',
+    'shadow-soft': '0 10px 24px rgba(2, 6, 23, 0.28)',
+    'focus': '0 0 0 4px rgba(106, 164, 255, 0.20)',
+  },
+};
+
+function parseHexColor(value) {
+  const raw = String(value || '').trim().replace(/^#/, '');
+  if (!/^[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(raw)) {
+    return null;
+  }
+  const normalized = raw.length === 3 ? raw.split('').map((char) => char + char).join('') : raw;
+  const intValue = Number.parseInt(normalized, 16);
+  return {
+    r: (intValue >> 16) & 255,
+    g: (intValue >> 8) & 255,
+    b: intValue & 255,
+    hex: `#${normalized.toLowerCase()}`,
+  };
+}
+
+function toRgba(color, alpha, fallback) {
+  const parsed = parseHexColor(color);
+  if (!parsed) return fallback;
+  return `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${alpha})`;
+}
+
+function relativeLuminance(color) {
+  const parsed = typeof color === 'string' ? parseHexColor(color) : color;
+  if (!parsed) return 1;
+  const normalize = (channel) => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * normalize(parsed.r) + 0.7152 * normalize(parsed.g) + 0.0722 * normalize(parsed.b);
+}
+
+function isDarkColor(color) {
+  return relativeLuminance(color) < 0.36;
+}
+
+function pickReadableText(color, darkText = '#0b1220', lightText = '#ffffff') {
+  return isDarkColor(color) ? lightText : darkText;
+}
+
+function applyPalette(palette) {
+  const root = document.documentElement;
+  Object.entries(palette).forEach(([key, value]) => {
+    root.style.setProperty(`--${key}`, value);
+  });
+}
+
+function applyTheme() {
+  const theme = tg?.themeParams || {};
+  const scheme = tg?.colorScheme || (theme.bg_color && isDarkColor(theme.bg_color) ? 'dark' : 'light');
+  const palette = scheme === 'dark' ? THEME_TOKENS.dark : THEME_TOKENS.light;
+  const root = document.documentElement;
+  root.dataset.scheme = scheme === 'dark' ? 'dark' : 'light';
+  applyPalette(palette);
+
+  const accent = parseHexColor(theme.button_color)?.hex || palette['accent'];
+  const accentText = parseHexColor(theme.button_text_color)?.hex || pickReadableText(accent, '#0b1220', '#ffffff');
+
+  root.style.setProperty('--accent', accent);
+  root.style.setProperty('--button-text', accentText);
+  root.style.setProperty('--accent-soft', toRgba(accent, scheme === 'dark' ? 0.22 : 0.12, palette['accent-soft']));
+  root.style.setProperty('--accent-strong', toRgba(accent, scheme === 'dark' ? 0.30 : 0.18, palette['accent-strong']));
+  root.style.setProperty('--focus', toRgba(accent, scheme === 'dark' ? 0.20 : 0.18, palette['focus']));
+
+  try {
+    tg?.setBackgroundColor?.(palette['bg']);
+  } catch (_error) {}
+  try {
+    tg?.setBottomBarColor?.(palette['bg']);
+  } catch (_error) {}
+  try {
+    tg?.setHeaderColor?.(palette['bg']);
+  } catch (_error) {
+    try {
+      tg?.setHeaderColor?.('bg_color');
+    } catch (__error) {}
+  }
+}
 
       function currentUser() {
         return state.currentState?.user || null;
@@ -692,36 +968,38 @@
       }
 
       function clearNotice() {
-        if (state.noticeTimer) {
-          window.clearTimeout(state.noticeTimer);
-          state.noticeTimer = null;
-        }
-        el.notice.className = 'card notice-card hidden';
-        el.noticeText.textContent = '';
-      }
+  if (state.noticeTimer) {
+    window.clearTimeout(state.noticeTimer);
+    state.noticeTimer = null;
+  }
+  el.notice.className = 'card notice-card hidden';
+  el.noticeText.textContent = '';
+}
 
-      function showNotice(text, kind = 'success') {
-        clearNotice();
-        el.noticeText.textContent = text;
-        el.notice.className = `card notice-card notice-${kind}`;
-        state.noticeTimer = window.setTimeout(() => {
-          clearNotice();
-        }, 2800);
-      }
+function showNotice(text, kind = 'success') {
+  clearNotice();
+  el.noticeText.textContent = text;
+  el.notice.className = `card notice-card notice-${kind}`;
+  state.noticeTimer = window.setTimeout(() => {
+    clearNotice();
+  }, 3200);
+}
 
-      function showError(message, { alert = false } = {}) {
-        const text = String(message || 'Неизвестная ошибка.');
-        el.errorText.textContent = text;
-        showPrimary('error');
-        setProfileVisible(false);
-        setActiveBlocksVisible(false);
-        showNotice(text, 'error');
-        if (alert) {
-          try {
-            tg?.showAlert?.(text);
-          } catch (_error) {}
-        }
-      }
+function showError(message, { alert = false, fatal = !state.sessionToken } = {}) {
+  const text = String(message || 'Неизвестная ошибка.');
+  if (fatal) {
+    el.errorText.textContent = text;
+    showPrimary('error');
+    setProfileVisible(false);
+    setActiveBlocksVisible(false);
+  }
+  showNotice(text, 'error');
+  if (alert) {
+    try {
+      tg?.showAlert?.(text);
+    } catch (_error) {}
+  }
+}
 
       function formatDateTime(value) {
         if (!value) return '—';
@@ -832,47 +1110,74 @@
         }
       }
 
+
+function openExternalLink(url) {
+  if (!url) return;
+  try {
+    tg?.openLink?.(url);
+    return;
+  } catch (_error) {}
+  window.open(url, '_blank', 'noopener');
+}
+
       function renderInviteLinks(container, invite) {
-        if (!invite || !container) {
-          return;
-        }
-        container.innerHTML = '';
-        container.classList.remove('hidden');
+  if (!invite || !container) {
+    return;
+  }
+  container.innerHTML = '';
+  container.classList.remove('hidden');
 
-        const title = document.createElement('div');
-        title.className = 'strong';
-        title.textContent = 'Отправь одну из ссылок партнёру';
-        container.appendChild(title);
+  const primaryLink = invite.mini_app_link || invite.bot_start_link || '';
+  const backupLink = invite.bot_start_link && invite.bot_start_link !== primaryLink ? invite.bot_start_link : null;
 
-        const expires = document.createElement('div');
-        expires.className = 'meta';
-        expires.textContent = `Действует до ${formatDateTime(invite.expires_at)}.`;
-        container.appendChild(expires);
+  const title = document.createElement('div');
+  title.className = 'strong';
+  title.textContent = 'Приглашение готово';
 
-        const addCopyLine = (labelText, value) => {
-          if (!value) return;
-          const line = document.createElement('div');
-          line.className = 'copy-line';
-          const label = document.createElement('div');
-          label.className = 'meta';
-          label.textContent = labelText;
-          const code = document.createElement('div');
-          code.className = 'copy-value';
-          code.textContent = value;
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'ghost';
-          button.textContent = 'Скопировать';
-          button.addEventListener('click', () => {
-            copyText(value).catch(() => {});
-          });
-          line.append(label, code, button);
-          container.appendChild(line);
-        };
+  const expires = document.createElement('div');
+  expires.className = 'meta';
+  expires.textContent = `Действует до ${formatDateTime(invite.expires_at)}.`;
 
-        addCopyLine('Ссылка для бота', invite.bot_start_link);
-        addCopyLine('Ссылка для приложения', invite.mini_app_link);
-      }
+  const value = document.createElement('div');
+  value.className = 'copy-value';
+  value.textContent = primaryLink;
+
+  const actions = document.createElement('div');
+  actions.className = 'copy-actions';
+
+  const copyButton = document.createElement('button');
+  copyButton.type = 'button';
+  copyButton.className = 'primary';
+  copyButton.textContent = 'Скопировать ссылку';
+  copyButton.addEventListener('click', () => {
+    copyText(primaryLink).catch(() => {});
+  });
+
+  const openButton = document.createElement('button');
+  openButton.type = 'button';
+  openButton.className = 'secondary';
+  openButton.textContent = 'Открыть ссылку';
+  openButton.addEventListener('click', () => openExternalLink(primaryLink));
+
+  actions.append(copyButton, openButton);
+  container.append(title, expires, value, actions);
+
+  if (backupLink) {
+    const fallbackMeta = document.createElement('div');
+    fallbackMeta.className = 'meta';
+    fallbackMeta.textContent = 'Если нужно, можно скопировать запасную ссылку через бота.';
+
+    const fallbackAction = document.createElement('button');
+    fallbackAction.type = 'button';
+    fallbackAction.className = 'ghost';
+    fallbackAction.textContent = 'Скопировать запасную ссылку';
+    fallbackAction.addEventListener('click', () => {
+      copyText(backupLink).catch(() => {});
+    });
+
+    container.append(fallbackMeta, fallbackAction);
+  }
+}
 
       function updateRoleButtons(roleValue) {
         [
@@ -885,24 +1190,24 @@
       }
 
       function renderProfileCard(user, partner) {
-        if (!user) {
-          setProfileVisible(false);
-          return;
-        }
-        setProfileVisible(true);
-        el.roleSummary.textContent = `Ты — ${roleLabel(user)}.`;
-        el.partnerRoleSummary.textContent = partner
-          ? `Партнёр ${partner.display_name} — ${roleLabel(partner)}.`
-          : 'Роль партнёра появится после подтверждения пары.';
-        updateRoleButtons(user.relationship_role || 'unspecified');
-      }
+  if (!user) {
+    setProfileVisible(false);
+    return;
+  }
+  setProfileVisible(true);
+  el.roleSummary.textContent = `Сейчас у тебя выбрано: ${roleLabel(user)}.`;
+  el.partnerRoleSummary.textContent = partner
+    ? `У ${partner.display_name} сейчас указано: ${roleLabel(partner)}.`
+    : 'После подтверждения пары здесь появится роль партнёра.';
+  updateRoleButtons(user.relationship_role || 'unspecified');
+}
 
-      function renderActiveHeader(user, partner) {
-        if (!user || !partner) return;
-        el.activeText.textContent = `${partner.display_name} — твой подтверждённый партнёр. Можно пользоваться напоминаниями и заботливыми сообщениями.`;
-        el.activeRoleUser.textContent = `Ты: ${roleLabel(user)}`;
-        el.activeRolePartner.textContent = `${partner.display_name}: ${roleLabel(partner)}`;
-      }
+function renderActiveHeader(user, partner) {
+  if (!user || !partner) return;
+  el.activeText.textContent = `${partner.display_name} — твой подтверждённый партнёр. Можно отправлять напоминания и тёплые сообщения.`;
+  el.activeRoleUser.textContent = `Ты: ${roleLabel(user)}`;
+  el.activeRolePartner.textContent = `${partner.display_name}: ${roleLabel(partner)}`;
+}
 
       function filteredTemplates() {
         const templates = state.careTemplates || [];
@@ -1005,7 +1310,7 @@
       function renderReminders(reminders) {
         state.reminders = Array.isArray(reminders) ? reminders : [];
         el.reminderList.innerHTML = '';
-        el.remindersCounter.textContent = `${state.reminders.length} в списке`;
+        el.remindersCounter.textContent = state.reminders.length ? `${state.reminders.length} в списке` : '';
         el.emptyReminders.classList.toggle('hidden', state.reminders.length > 0);
 
         state.reminders.forEach((item) => {
@@ -1030,7 +1335,7 @@
 
           const meta = document.createElement('div');
           meta.className = 'meta';
-          meta.textContent = `Для ${item.recipient.display_name} · ${formatDateTime(item.scheduled_at_utc)}`;
+          meta.textContent = `${formatDateTime(item.scheduled_at_utc)} · для ${item.recipient.display_name}`;
 
           card.append(top, body, meta);
 
@@ -1102,57 +1407,68 @@
       }
 
       function buildReplyForm(item) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'reply-box';
+  const wrapper = document.createElement('div');
+  wrapper.className = 'reply-box';
 
-        const title = document.createElement('div');
-        title.className = 'strong';
-        title.textContent = 'Ответить партнёру';
-        wrapper.appendChild(title);
+  const title = document.createElement('div');
+  title.className = 'strong';
+  title.textContent = 'Ответить партнёру';
+  wrapper.appendChild(title);
 
-        const quickRow = document.createElement('div');
-        quickRow.className = 'quick-replies';
-        replySuggestions.forEach((suggestion) => {
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'secondary';
-          button.textContent = `${suggestion.emoji} ${suggestion.title}`;
-          button.addEventListener('click', () => {
-            withButtonBusy(button, 'Отправляю…', async () => {
-              await sendQuickReply(item.id, suggestion);
-            }).catch((error) => showError(error.message || 'Не удалось отправить ответ.'));
-          });
-          quickRow.appendChild(button);
-        });
-        wrapper.appendChild(quickRow);
+  const quickRow = document.createElement('div');
+  quickRow.className = 'quick-replies';
+  replySuggestions.forEach((suggestion) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary';
+    button.textContent = `${suggestion.emoji} ${suggestion.title}`;
+    button.addEventListener('click', () => {
+      withButtonBusy(button, 'Отправляю…', async () => {
+        await sendQuickReply(item.id, suggestion);
+      }).catch((error) => showError(error.message || 'Не удалось отправить ответ.'));
+    });
+    quickRow.appendChild(button);
+  });
+  wrapper.appendChild(quickRow);
 
-        const customForm = document.createElement('div');
-        customForm.className = 'grid';
-        customForm.innerHTML = `
-          <div class="split">
-            <label style="flex: 0 0 92px;">
-              Эмодзи
-              <input data-role="reply-emoji" class="emoji-input" maxlength="4" value="💗" />
-            </label>
-            <label style="flex: 1 1 220px;">
-              Заголовок
-              <input data-role="reply-title" maxlength="80" value="Мой ответ" />
-            </label>
-          </div>
-          <label>
-            Текст ответа
-            <textarea data-role="reply-body" placeholder="Напиши свой ответ"></textarea>
-          </label>
-          <div class="actions">
-            <button data-role="reply-submit" class="primary" type="button">Отправить свой ответ</button>
-          </div>
-        `;
-        customForm.querySelector('[data-role="reply-submit"]').addEventListener('click', () => {
-          sendCustomReply(item.id, customForm).catch((error) => showError(error.message || 'Не удалось отправить ответ.'));
-        });
-        wrapper.appendChild(customForm);
-        return wrapper;
-      }
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'ghost';
+  toggle.textContent = 'Свой ответ';
+  wrapper.appendChild(toggle);
+
+  const customForm = document.createElement('div');
+  customForm.className = 'grid hidden';
+  customForm.innerHTML = `
+    <div class="split">
+      <label style="flex: 0 0 92px;">
+        Эмодзи
+        <input data-role="reply-emoji" class="emoji-input" maxlength="4" value="💗" />
+      </label>
+      <label style="flex: 1 1 220px;">
+        Заголовок
+        <input data-role="reply-title" maxlength="80" value="Мой ответ" />
+      </label>
+    </div>
+    <label>
+      Текст ответа
+      <textarea data-role="reply-body" placeholder="Напиши свой ответ"></textarea>
+    </label>
+    <div class="actions">
+      <button data-role="reply-submit" class="primary" type="button">Отправить ответ</button>
+    </div>
+  `;
+  toggle.addEventListener('click', () => {
+    const nextHidden = !customForm.classList.contains('hidden');
+    customForm.classList.toggle('hidden', nextHidden);
+    toggle.textContent = nextHidden ? 'Свой ответ' : 'Скрыть форму';
+  });
+  customForm.querySelector('[data-role="reply-submit"]').addEventListener('click', () => {
+    sendCustomReply(item.id, customForm).catch((error) => showError(error.message || 'Не удалось отправить ответ.'));
+  });
+  wrapper.appendChild(customForm);
+  return wrapper;
+}
 
       function renderCareHistory(history) {
         state.careHistory = Array.isArray(history) ? history : [];
@@ -1176,8 +1492,8 @@
           const direction = document.createElement('div');
           direction.className = 'meta';
           direction.textContent = item.direction === 'outbound'
-            ? `Ты → ${item.recipient.display_name}`
-            : `${item.sender.display_name} → тебе`;
+            ? `Для ${item.recipient.display_name}`
+            : `От ${item.sender.display_name}`;
 
           const body = document.createElement('div');
           body.className = 'history-body';
@@ -1401,7 +1717,7 @@
           body: JSON.stringify({ template_code: templateCode }),
         });
         renderCareHistory(result.history || []);
-        showNotice('Сообщение поставлено в очередь на отправку');
+        showNotice('Сообщение отправляется');
         tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
@@ -1431,7 +1747,7 @@
         el.customCareTitle.value = '';
         el.customCareEmoji.value = '';
         renderCareHistory(result.history || []);
-        showNotice('Сообщение поставлено в очередь на отправку');
+        showNotice('Сообщение отправляется');
         tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
@@ -1470,21 +1786,21 @@
           startAutoRefresh();
         } catch (error) {
           if (!tg?.initData) {
-            showError(`${error.message || 'Не удалось пройти авторизацию.'}\n\nПодсказка: открой приложение прямо из бота в Telegram.`, { alert: false });
+            showError(`${error.message || 'Не удалось пройти авторизацию.'}\n\nПодсказка: открой приложение прямо из бота в Telegram.`, { alert: false, fatal: true });
           } else {
-            showError(error.message || 'Не удалось пройти авторизацию.', { alert: false });
+            showError(error.message || 'Не удалось пройти авторизацию.', { alert: false, fatal: true });
           }
         }
       }
 
       window.addEventListener('error', (event) => {
         if (!event?.error) return;
-        showError(event.error.message || 'Произошла ошибка интерфейса.', { alert: false });
+        showError(event.error.message || 'Произошла ошибка интерфейса.', { alert: false, fatal: !state.sessionToken });
       });
 
       window.addEventListener('unhandledrejection', (event) => {
         const reason = event?.reason;
-        showError(reason?.message || String(reason || 'Необработанная ошибка.'), { alert: false });
+        showError(reason?.message || String(reason || 'Необработанная ошибка.'), { alert: false, fatal: !state.sessionToken });
       });
 
       document.addEventListener('visibilitychange', () => {
@@ -1556,6 +1872,7 @@
       tg?.onEvent?.('themeChanged', applyTheme);
 
       bootstrap();
+    
     </script>
   </body>
 </html>
