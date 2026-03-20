@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from nimarita.domain.enums import RelationshipRole
 from nimarita.domain.models import TelegramUserSnapshot, User
 from nimarita.infra.sqlite import SQLiteDatabase
 
@@ -34,11 +35,12 @@ class UserRepository:
                     last_name,
                     language_code,
                     timezone,
+                    relationship_role,
                     started_bot,
                     created_at,
                     updated_at,
                     last_seen_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     snapshot.telegram_user_id,
@@ -48,6 +50,7 @@ class UserRepository:
                     snapshot.last_name,
                     snapshot.language_code,
                     self._default_timezone,
+                    RelationshipRole.UNSPECIFIED.value,
                     1 if started_bot else 0,
                     now.isoformat(),
                     now.isoformat(),
@@ -89,6 +92,13 @@ class UserRepository:
         await self._db.execute(
             "UPDATE users SET timezone = ?, updated_at = ? WHERE id = ?",
             (timezone, now.isoformat(), user_id),
+        )
+
+    async def set_relationship_role(self, user_id: int, role: RelationshipRole) -> None:
+        now = datetime.now(tz=UTC)
+        await self._db.execute(
+            'UPDATE users SET relationship_role = ?, updated_at = ? WHERE id = ?',
+            (role.value, now.isoformat(), user_id),
         )
 
     async def list_private_chat_users(self, *, started_only: bool = True) -> list[User]:
@@ -133,6 +143,7 @@ def _row_to_user(row: Any) -> User:
         last_name=row["last_name"],
         language_code=row["language_code"],
         timezone=row["timezone"],
+        relationship_role=RelationshipRole(row['relationship_role']) if row['relationship_role'] else RelationshipRole.UNSPECIFIED,
         started_bot=bool(row["started_bot"]),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),

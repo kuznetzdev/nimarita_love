@@ -4,6 +4,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from nimarita.catalog import get_quick_reply_pages
+from nimarita.domain.enums import RelationshipRole
 from nimarita.domain.models import DashboardState
 
 
@@ -29,6 +30,8 @@ def dashboard_keyboard(state: DashboardState, webapp_url: str | None) -> InlineK
         builder.row(InlineKeyboardButton(text='Создать пару 💞', callback_data='pair:create'))
         builder.row(InlineKeyboardButton(text='Обновить', callback_data='pair:status'))
 
+    builder.row(InlineKeyboardButton(text='Кто я в паре', callback_data='profile:open'))
+
     return builder.as_markup()
 
 
@@ -43,6 +46,7 @@ def main_keyboard(webapp_url: str | None) -> InlineKeyboardMarkup:
             )
         )
     builder.row(InlineKeyboardButton(text='Создать пару 💞', callback_data='pair:create'))
+    builder.row(InlineKeyboardButton(text='Указать роль', callback_data='profile:open'))
     builder.row(InlineKeyboardButton(text='Статус', callback_data='pair:status'))
     return builder.as_markup()
 
@@ -126,6 +130,19 @@ def care_command_keyboard(webapp_url: str | None) -> InlineKeyboardMarkup | None
         return None
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text='Открыть слой заботы 💌', web_app=WebAppInfo(url=webapp_url))]
+            [InlineKeyboardButton(text='Открыть заботливые сообщения 💌', web_app=WebAppInfo(url=webapp_url))]
         ]
     )
+
+
+def profile_keyboard(current_role: RelationshipRole) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    woman_label = '✅ Я девушка' if current_role is RelationshipRole.WOMAN else 'Я девушка'
+    man_label = '✅ Я парень' if current_role is RelationshipRole.MAN else 'Я парень'
+    unspecified_label = '✅ Не указывать' if current_role is RelationshipRole.UNSPECIFIED else 'Не указывать'
+    builder.row(
+        InlineKeyboardButton(text=woman_label, callback_data='profile:set:woman'),
+        InlineKeyboardButton(text=man_label, callback_data='profile:set:man'),
+    )
+    builder.row(InlineKeyboardButton(text=unspecified_label, callback_data='profile:set:unspecified'))
+    return builder.as_markup()

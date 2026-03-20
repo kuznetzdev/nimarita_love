@@ -5,7 +5,9 @@ import unittest
 from pathlib import Path
 
 from nimarita.config import Settings
-from nimarita.domain.enums import ReminderOccurrenceStatus
+from datetime import timedelta
+
+from nimarita.domain.enums import ReminderOccurrenceStatus, ReminderRuleKind
 from nimarita.domain.models import TelegramUserSnapshot
 from nimarita.infra import LinkBuilder, SQLiteDatabase
 from nimarita.repositories import PairingRepository, ReminderRepository, UserRepository
@@ -135,6 +137,32 @@ class ReminderServiceTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(current.occurrence.status, ReminderOccurrenceStatus.ACKNOWLEDGED)
         self.assertEqual(follow_up.occurrence.status, ReminderOccurrenceStatus.SCHEDULED)
         self.assertNotEqual(current.occurrence.id, follow_up.occurrence.id)
+
+    async def test_daily_reminder_schedules_next_occurrence_after_delivery(self) -> None:
+        envelope = await self.reminders.create_reminder(
+            telegram_user_id=101,
+            text="Напомни мне написать",
+            scheduled_for_local="2030-01-01T10:00",
+            timezone="Europe/Moscow",
+            kind=ReminderRuleKind.DAILY,
+        )
+
+        delivered = await self.reminders.mark_delivered(
+            occurrence_id=envelope.occurrence.id,
+            telegram_message_id=4242,
+        )
+        self.assertEqual(delivered.occurrence.status, ReminderOccurrenceStatus.DELIVERED)
+
+        scheduled = await self.reminders.list_pair_reminders(telegram_user_id=101, limit=10)
+        self.assertGreaterEqual(len(scheduled), 2)
+        follow_up = next(item for item in scheduled if item.occurrence.id != envelope.occurrence.id)
+        self.assertEqual(follow_up.rule.id, envelope.rule.id)
+        self.assertEqual(follow_up.rule.kind, ReminderRuleKind.DAILY)
+        self.assertEqual(follow_up.occurrence.status, ReminderOccurrenceStatus.SCHEDULED)
+        self.assertEqual(
+            follow_up.occurrence.scheduled_at_utc,
+            envelope.occurrence.scheduled_at_utc + timedelta(days=1),
+        )
 
 
 if __name__ == "__main__":

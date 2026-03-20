@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any, Iterable
 
 from nimarita.catalog import CareTemplateSeed
-from nimarita.domain.enums import CareDispatchStatus
+from nimarita.domain.enums import CareDispatchStatus, RelationshipRole
 from nimarita.domain.models import CareDispatch, CareTemplate
 from nimarita.infra.sqlite import SQLiteDatabase
 
@@ -26,17 +26,21 @@ class CareRepository:
                         title,
                         body,
                         emoji,
+                        sender_role,
+                        recipient_role,
                         is_active,
                         sort_order,
                         created_at,
                         updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
                     ON CONFLICT(template_code) DO UPDATE SET
                         category = excluded.category,
                         category_label = excluded.category_label,
                         title = excluded.title,
                         body = excluded.body,
                         emoji = excluded.emoji,
+                        sender_role = excluded.sender_role,
+                        recipient_role = excluded.recipient_role,
                         is_active = excluded.is_active,
                         sort_order = excluded.sort_order,
                         updated_at = excluded.updated_at
@@ -48,6 +52,8 @@ class CareRepository:
                         item.title,
                         item.body,
                         item.emoji,
+                        item.sender_role.value,
+                        item.recipient_role.value,
                         item.sort_order,
                         now.isoformat(),
                         now.isoformat(),
@@ -56,26 +62,43 @@ class CareRepository:
                 inserted += 1
         return inserted
 
-    async def list_templates(self, *, category: str | None = None, limit: int = 500) -> list[CareTemplate]:
+    async def list_templates(
+        self,
+        *,
+        category: str | None = None,
+        sender_role: RelationshipRole = RelationshipRole.UNSPECIFIED,
+        recipient_role: RelationshipRole = RelationshipRole.UNSPECIFIED,
+        limit: int = 500,
+    ) -> list[CareTemplate]:
+        params: list[Any] = []
+        filters = ['is_active = 1']
+        if category:
+            filters.append('category = ?')
+            params.append(category)
+        filters.append('(sender_role = ? OR sender_role = ?)')
+        params.extend([RelationshipRole.UNSPECIFIED.value, sender_role.value])
+        filters.append('(recipient_role = ? OR recipient_role = ?)')
+        params.extend([RelationshipRole.UNSPECIFIED.value, recipient_role.value])
+        where_clause = ' AND '.join(filters)
         if category:
             rows = await self._db.fetchall(
-                """
+                f"""
                 SELECT * FROM care_templates
-                WHERE is_active = 1 AND category = ?
-                ORDER BY sort_order ASC, id ASC
-                LIMIT ?
-                """,
-                (category, limit),
-            )
-        else:
-            rows = await self._db.fetchall(
-                """
-                SELECT * FROM care_templates
-                WHERE is_active = 1
+                WHERE {where_clause}
                 ORDER BY category_label ASC, sort_order ASC, id ASC
                 LIMIT ?
                 """,
-                (limit,),
+                (*params, limit),
+            )
+        else:
+            rows = await self._db.fetchall(
+                f"""
+                SELECT * FROM care_templates
+                WHERE {where_clause}
+                ORDER BY category_label ASC, sort_order ASC, id ASC
+                LIMIT ?
+                """,
+                (*params, limit),
             )
         return [_row_to_template(row) for row in rows]
 
@@ -194,6 +217,70 @@ class CareRepository:
                     template.title,
                     template.body,
                     template.emoji,
+                    CareDispatchStatus.PENDING.value,
+                    now.isoformat(),
+                    now.isoformat(),
+                    now.isoformat(),
+                ),
+            )
+            dispatch_id = int(cursor.lastrowid)
+            row = await tx.fetchone('SELECT * FROM care_dispatches WHERE id = ?', (dispatch_id,))
+            assert row is not None
+            return _row_to_dispatch(row)
+
+    async def create_custom_dispatch(
+        self,
+        *,
+        pair_id: int,
+        sender_user_id: int,
+        recipient_user_id: int,
+        category: str,
+        category_label: str,
+        title: str,
+        body: str,
+        emoji: str,
+        now: datetime,
+    ) -> CareDispatch:
+        async with self._db.transaction() as tx:
+            cursor = await tx.execute(
+                """
+                INSERT INTO care_dispatches (
+                    pair_id,
+                    sender_user_id,
+                    recipient_user_id,
+                    template_code,
+                    category,
+                    category_label,
+                    title,
+                    body,
+                    emoji,
+                    status,
+                    telegram_message_id,
+                    response_code,
+                    response_title,
+                    response_body,
+                    response_emoji,
+                    response_clicked_at,
+                    next_attempt_at_utc,
+                    processing_started_at,
+                    delivery_attempts_count,
+                    sent_at,
+                    delivered_at,
+                    last_error,
+                    created_at,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?, NULL, 0, NULL, NULL, NULL, ?, ?)
+                """,
+                (
+                    pair_id,
+                    sender_user_id,
+                    recipient_user_id,
+                    'custom',
+                    category,
+                    category_label,
+                    title,
+                    body,
+                    emoji,
                     CareDispatchStatus.PENDING.value,
                     now.isoformat(),
                     now.isoformat(),
@@ -456,6 +543,8 @@ def _row_to_template(row: Any) -> CareTemplate:
         title=row['title'],
         body=row['body'],
         emoji=row['emoji'],
+        sender_role=RelationshipRole(row['sender_role']) if row['sender_role'] else RelationshipRole.UNSPECIFIED,
+        recipient_role=RelationshipRole(row['recipient_role']) if row['recipient_role'] else RelationshipRole.UNSPECIFIED,
         is_active=bool(row['is_active']),
         sort_order=int(row['sort_order']),
         created_at=datetime.fromisoformat(row['created_at']),

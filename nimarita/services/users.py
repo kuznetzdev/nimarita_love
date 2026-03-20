@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from nimarita.domain.errors import AccessDeniedError
+from nimarita.domain.enums import RelationshipRole
 from nimarita.domain.models import TelegramUserSnapshot, User
 from nimarita.repositories.users import UserRepository
 from nimarita.services.access import AccessPolicy
@@ -29,6 +30,24 @@ class UserService:
 
     async def get_by_telegram_user_id(self, telegram_user_id: int) -> User | None:
         return await self._users.get_by_telegram_user_id(telegram_user_id)
+
+    async def set_relationship_role(self, telegram_user_id: int, role: RelationshipRole) -> User:
+        await self._assert_allowed(telegram_user_id, channel='profile')
+        user = await self._users.get_by_telegram_user_id(telegram_user_id)
+        if user is None:
+            raise AccessDeniedError('Сначала открой бота через /start.')
+        await self._users.set_relationship_role(user.id, role)
+        refreshed = await self._users.get_by_id(user.id)
+        assert refreshed is not None
+        if self._audit is not None:
+            await self._audit.record(
+                action='profile_role_updated',
+                entity_type='user',
+                entity_id=refreshed.id,
+                actor_user_id=refreshed.id,
+                payload={'relationship_role': refreshed.relationship_role.value},
+            )
+        return refreshed
 
     async def is_allowed(self, telegram_user_id: int) -> bool:
         if self._access is None:

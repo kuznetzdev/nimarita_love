@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from nimarita.config import Settings
+from nimarita.domain.enums import RelationshipRole
 from nimarita.domain.errors import ConflictError
 from nimarita.domain.models import TelegramUserSnapshot
 from nimarita.infra import LinkBuilder, SQLiteDatabase
@@ -128,6 +129,43 @@ class CareServiceTestCase(unittest.IsolatedAsyncioTestCase):
                 template_code=chosen.template_code,
                 deliver=fake_deliver,
             )
+
+    async def test_role_specific_catalog_is_filtered_for_sender_and_partner(self) -> None:
+        await self.users.set_relationship_role(101, RelationshipRole.MAN)
+        await self.users.set_relationship_role(202, RelationshipRole.WOMAN)
+
+        man_templates = await self.care.list_templates(telegram_user_id=101)
+        woman_templates = await self.care.list_templates(telegram_user_id=202)
+
+        self.assertTrue(any(item.category == 'man_to_woman' for item in man_templates))
+        self.assertFalse(any(item.category == 'woman_to_man' for item in man_templates))
+        self.assertTrue(any(item.category == 'woman_to_man' for item in woman_templates))
+        self.assertFalse(any(item.category == 'man_to_woman' for item in woman_templates))
+
+    async def test_custom_care_and_custom_reply_flow(self) -> None:
+        sent = await self.care.queue_custom(
+            telegram_user_id=101,
+            title='Только для тебя',
+            body='Напоминаю тебе поесть и немного выдохнуть.',
+            emoji='💌',
+        )
+
+        self.assertEqual(sent.dispatch.template_code, 'custom')
+        self.assertEqual(sent.dispatch.title, 'Только для тебя')
+
+        sent = await self.care.mark_sent(dispatch_id=sent.dispatch.id, telegram_message_id=2024)
+
+        replied = await self.care.register_custom_reply(
+            telegram_user_id=202,
+            dispatch_id=sent.dispatch.id,
+            title='Услышала тебя',
+            body='Спасибо, сейчас как раз сделаю паузу.',
+            emoji='💗',
+        )
+
+        self.assertEqual(replied.envelope.dispatch.status.value, 'responded')
+        self.assertEqual(replied.reply.code, 'custom')
+        self.assertEqual(replied.reply.title, 'Услышала тебя')
 
 
 if __name__ == '__main__':

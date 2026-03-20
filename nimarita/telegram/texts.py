@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC
 
+from nimarita.domain.enums import ReminderRuleKind
 from nimarita.domain.models import CareEnvelope, DashboardState, PairInvitePreview, ReminderEnvelope, User
 from nimarita.infra.links import InviteLinks
 from nimarita.services.care import CareReplyResult
@@ -13,21 +14,21 @@ def private_chat_only_text() -> str:
 
 def welcome_text(user: User) -> str:
     return (
-        f'{user.display_name}, Nimarita уже работает как парный продукт 1↔1.\n\n'
-        'Здесь есть подтверждённые пары, напоминания, слой заботы с каталогом шаблонов, живые кнопки действий '
-        'и автоочистка служебных карточек, чтобы чат оставался удобным.'
+        f'{user.display_name}, добро пожаловать в Nimarita 💖\n\n'
+        'Здесь можно подтвердить пару, отправлять заботливые сообщения, ставить напоминания и открывать мини-приложение прямо из чата.'
     )
 
 
 def help_text() -> str:
     return (
         'Команды:\n'
-        '/start — зарегистрировать пользователя и поднять панель\n'
+        '/start — запустить бота и открыть точку входа в приложение\n'
         '/open — открыть мини-приложение\n'
         '/pair — создать новое приглашение в пару\n'
         '/status — обновить текущее состояние пары\n'
         '/remind YYYY-MM-DD HH:MM текст — быстрый резервный сценарий для одноразового напоминания\n'
-        '/care — открыть слой заботы и каталог шаблонов\n'
+        '/care — открыть раздел заботы\n'
+        '/profile — указать, кто ты в паре\n'
         '/unpair — завершить активную пару'
     )
 
@@ -37,8 +38,9 @@ def status_text(state: DashboardState) -> str:
         return (
             '💖 Активная пара подтверждена\n\n'
             f'Партнёр: {state.partner.display_name}\n'
-            'Можно ставить напоминания и отправлять сообщения заботы из мини-приложения. '
-            'У доставленных карточек бот редактирует сообщение после действия и убирает его автоматически.'
+            f'Твоя роль: {state.user.relationship_role_label}\n'
+            f'Роль партнёра: {state.partner.relationship_role_label}\n\n'
+            'Можно ставить напоминания и отправлять заботливые сообщения из мини-приложения.'
         )
     if state.mode == 'incoming_invite' and state.incoming_inviter is not None and state.incoming_invite is not None:
         return (
@@ -56,19 +58,19 @@ def status_text(state: DashboardState) -> str:
 
 
 def invite_created_text(links: InviteLinks) -> str:
-    mini_app_line = f'Ссылка для мини-приложения: {links.mini_app_link}\n' if links.mini_app_link else ''
+    mini_app_line = f'Ссылка для приложения: {links.mini_app_link}\n' if links.mini_app_link else ''
     return (
         'Приглашение создано. Отправь одну из ссылок партнёру.\n\n'
         f'Ссылка для бота: {links.bot_start_link}\n'
         f'{mini_app_line}'
-        'После подтверждения связь станет эксклюзивной 1↔1.'
+        'После подтверждения пара станет активной.'
     )
 
 
 def invite_preview_text(preview: PairInvitePreview) -> str:
     return (
-        f'{preview.inviter.display_name} приглашает тебя создать подтверждённую пару 1↔1.\n\n'
-        'После подтверждения другие активные партнёры будут недоступны до разрыва текущей пары.'
+        f'{preview.inviter.display_name} приглашает тебя в пару 💌\n\n'
+        'После подтверждения вы сможете пользоваться общими напоминаниями и заботливыми сообщениями.'
     )
 
 
@@ -101,6 +103,7 @@ def reminder_delivery_text(envelope: ReminderEnvelope) -> str:
     return (
         '⏰ Напоминание от партнёра\n\n'
         f'От: {envelope.creator.display_name}\n'
+        f'Повтор: {_reminder_kind_label(envelope.rule.kind)}\n'
         f'Запланировано на: {local_dt}\n\n'
         f'{envelope.occurrence.text}'
     )
@@ -108,7 +111,7 @@ def reminder_delivery_text(envelope: ReminderEnvelope) -> str:
 
 def reminder_created_text(envelope: ReminderEnvelope) -> str:
     local_dt = envelope.occurrence.scheduled_at_utc.astimezone().strftime('%d.%m.%Y %H:%M %Z')
-    return f'Напоминание для {envelope.recipient.display_name} поставлено на {local_dt}.'
+    return f'Напоминание для {envelope.recipient.display_name} поставлено на {local_dt}. Повтор: {_reminder_kind_label(envelope.rule.kind)}.'
 
 
 def reminder_cancelled_text(envelope: ReminderEnvelope) -> str:
@@ -201,8 +204,8 @@ def care_sender_response_text(result: CareReplyResult) -> str:
 
 def care_usage_text() -> str:
     return (
-        'Слой заботы теперь доступен в мини-приложении.\n\n'
-        'Там есть большой каталог шаблонов по категориям, история отправок и быстрые ответы через inline-кнопки.'
+        'Раздел заботы открыт в мини-приложении.\n\n'
+        'Там есть готовые сообщения по категориям, свои кастомные сообщения, история отправок и быстрые ответы.'
     )
 
 
@@ -215,7 +218,7 @@ def remind_usage_text() -> str:
 
 
 def open_ready_text() -> str:
-    return 'Точка входа готова. Можно сразу открыть мини-приложение.'
+    return 'Всё готово. Можно сразу открыть приложение.'
 
 
 def no_active_pair_text() -> str:
@@ -236,6 +239,18 @@ def pair_link_ready_text() -> str:
 
 def dashboard_updated_text() -> str:
     return 'Панель обновлена'
+
+
+def profile_text(user: User) -> str:
+    return (
+        'Кто ты в паре?\n\n'
+        f'Сейчас: {user.relationship_role_label}.\n'
+        'Это влияет на подбор некоторых заботливых сообщений и делает интерфейс понятнее.'
+    )
+
+
+def profile_role_saved_text(role_label: str) -> str:
+    return f'Роль сохранена: {role_label}'
 
 
 def confirmation_required_text() -> str:
@@ -296,3 +311,15 @@ def invalid_action_text() -> str:
 
 def card_hidden_short_text() -> str:
     return 'Карточка скрыта'
+
+
+def _reminder_kind_label(kind: ReminderRuleKind) -> str:
+    if kind is ReminderRuleKind.ONE_TIME:
+        return 'один раз'
+    if kind is ReminderRuleKind.DAILY:
+        return 'каждый день'
+    if kind is ReminderRuleKind.WEEKDAYS:
+        return 'по будням'
+    if kind is ReminderRuleKind.WEEKLY:
+        return 'раз в неделю'
+    return kind.value

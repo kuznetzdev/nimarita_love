@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from nimarita.domain.enums import RelationshipRole
+
 
 @dataclass(slots=True, frozen=True)
 class CareTemplateSeed:
@@ -12,6 +14,8 @@ class CareTemplateSeed:
     body: str
     emoji: str
     sort_order: int
+    sender_role: RelationshipRole = RelationshipRole.UNSPECIFIED
+    recipient_role: RelationshipRole = RelationshipRole.UNSPECIFIED
 
 
 @dataclass(slots=True, frozen=True)
@@ -332,6 +336,80 @@ for category, category_label, default_emoji, items in CATEGORY_BLUEPRINTS:
             )
         )
         _sort_order += 10
+
+
+ROLE_CARE_BLUEPRINTS: list[tuple[str, str, RelationshipRole, RelationshipRole, str, str, str]] = [
+    (
+        'man_to_woman',
+        'Забота для девушки',
+        RelationshipRole.MAN,
+        RelationshipRole.WOMAN,
+        '💐',
+        'Ты у меня нежная',
+        'Пожалуйста, побереги себя сегодня. Мне очень хочется, чтобы тебе было мягко, спокойно и тепло.',
+    ),
+    (
+        'man_to_woman',
+        'Забота для девушки',
+        RelationshipRole.MAN,
+        RelationshipRole.WOMAN,
+        '💋',
+        'Хочу порадовать тебя',
+        'Пусть сегодня у тебя найдётся минутка для чего-то красивого, вкусного и только твоего. Ты этого заслуживаешь.',
+    ),
+    (
+        'man_to_woman',
+        'Забота для девушки',
+        RelationshipRole.MAN,
+        RelationshipRole.WOMAN,
+        '🧸',
+        'Укутайся потеплее',
+        'Если устала или замёрзла, укутайся и немного отдохни. Мне важно, чтобы тебе было уютно.',
+    ),
+    (
+        'woman_to_man',
+        'Забота для парня',
+        RelationshipRole.WOMAN,
+        RelationshipRole.MAN,
+        '🤍',
+        'Мой сильный, береги себя',
+        'Пожалуйста, не тяни всё на себе без пауз. Мне важно, чтобы ты ел, пил воду и не выгорал.',
+    ),
+    (
+        'woman_to_man',
+        'Забота для парня',
+        RelationshipRole.WOMAN,
+        RelationshipRole.MAN,
+        '☕',
+        'Сделай себе паузу',
+        'Даже если день плотный, выдохни и возьми маленькую паузу. Ты мне нужен живой, спокойный и сытый.',
+    ),
+    (
+        'woman_to_man',
+        'Забота для парня',
+        RelationshipRole.WOMAN,
+        RelationshipRole.MAN,
+        '💪',
+        'Я в тебя верю',
+        'Ты справишься, но не забывай про себя по дороге. Мне нравится твоя сила, когда она бережная к тебе.',
+    ),
+]
+
+for index, (category, category_label, sender_role, recipient_role, emoji, title, body) in enumerate(ROLE_CARE_BLUEPRINTS, start=1):
+    CARE_TEMPLATE_DEFINITIONS.append(
+        CareTemplateSeed(
+            code=f"{category}_{index:02d}",
+            category=category,
+            category_label=category_label,
+            title=title,
+            body=body,
+            emoji=emoji,
+            sort_order=_sort_order,
+            sender_role=sender_role,
+            recipient_role=recipient_role,
+        )
+    )
+    _sort_order += 10
 
 
 QUICK_REPLY_BLUEPRINTS: list[tuple[str, str, str, str, str]] = [

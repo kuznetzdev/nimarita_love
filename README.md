@@ -6,9 +6,11 @@ Telegram-бот и Mini App для подтверждённых пар **1↔1**
 
 - асинхронный bot runtime на `aiogram`
 - Mini App backend на `aiohttp`
-- SQLite с `WAL`, checkpoint, quick-check и hot-backup
+- SQLite с автоматическим выбором journal mode, checkpoint, quick-check и hot-backup
 - reminders с outbox/worker delivery
-- care layer: каталог шаблонов, история, быстрые ответы и антиспам
+- care: каталог шаблонов, история, быстрые ответы, custom-сообщения и антиспам
+- роли пары: можно указать, кто девушка и кто парень
+- регулярные напоминания: один раз, каждый день, по будням, раз в неделю
 - feature-flag allowlist для закрытого или открытого запуска
 - health/readiness endpoints и audit log
 
@@ -98,6 +100,7 @@ ALLOWED_USER_IDS=123456789,987654321
 
 - `/start`
 - `/open`
+- `/profile`
 - `/pair`
 - `/status`
 - `/remind`
@@ -109,13 +112,24 @@ ALLOWED_USER_IDS=123456789,987654321
 
 Этот runtime рассчитан на **single-instance production**:
 
-- `WAL`
+- Railway Volume для `PRODUCT_DB_PATH` и `PRODUCT_BACKUP_DIR`
+- `AUTO` journal mode: локально `WAL`, на Railway Volume — `DELETE`
 - `synchronous=FULL`
 - `busy_timeout`
 - startup quick-check и foreign-key check
 - maintenance worker
 - hot-backup через SQLite backup API
 - graceful checkpoint на shutdown
+
+### Railway: что обязательно сделать
+
+1. Подключить **Volume** к сервису на Railway.
+2. Не включать несколько replicas для этого сервиса с SQLite.
+3. Оставить `SQLITE_JOURNAL_MODE=AUTO`.
+4. Не указывать `PRODUCT_DB_PATH`, если хочешь, чтобы приложение само использовало `RAILWAY_VOLUME_MOUNT_PATH/nimarita.db`.
+5. Для бэкапов оставить `PRODUCT_BACKUP_DIR` пустым или направить его в volume.
+
+Приложение уже умеет подхватывать `RAILWAY_VOLUME_MOUNT_PATH` и складывать туда базу и backup-ы по умолчанию.
 
 ## Если вливаешь архив поверх старого репозитория
 

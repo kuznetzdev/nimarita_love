@@ -8,6 +8,7 @@ from .enums import (
     EphemeralMessageStatus,
     InviteStatus,
     PairStatus,
+    RelationshipRole,
     ReminderOccurrenceStatus,
     ReminderRuleKind,
     ReminderRuleStatus,
@@ -24,6 +25,7 @@ class User:
     last_name: str | None
     language_code: str | None
     timezone: str
+    relationship_role: RelationshipRole
     started_bot: bool
     created_at: datetime
     updated_at: datetime
@@ -38,6 +40,14 @@ class User:
         if self.username:
             return f'@{self.username}'
         return f'user_{self.telegram_user_id}'
+
+    @property
+    def relationship_role_label(self) -> str:
+        if self.relationship_role is RelationshipRole.WOMAN:
+            return 'девушка'
+        if self.relationship_role is RelationshipRole.MAN:
+            return 'парень'
+        return 'не указано'
 
 
 @dataclass(slots=True, frozen=True)
@@ -158,6 +168,8 @@ class CareTemplate:
     title: str
     body: str
     emoji: str
+    sender_role: RelationshipRole
+    recipient_role: RelationshipRole
     is_active: bool
     sort_order: int
     created_at: datetime

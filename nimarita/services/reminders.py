@@ -5,8 +5,9 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from nimarita.config import Settings
+from nimarita.domain.enums import ReminderRuleKind, ReminderRuleStatus
 from nimarita.domain.errors import ConflictError, NotFoundError, ValidationError
-from nimarita.domain.models import ReminderEnvelope, ReminderOccurrence, User
+from nimarita.domain.models import ReminderEnvelope, ReminderOccurrence, ReminderRule, User
 from nimarita.repositories.pairing import PairingRepository
 from nimarita.repositories.reminders import ReminderRepository
 from nimarita.repositories.users import UserRepository
@@ -45,6 +46,23 @@ class ReminderService:
         scheduled_for_local: str,
         timezone: str,
     ) -> ReminderEnvelope:
+        return await self.create_reminder(
+            telegram_user_id=telegram_user_id,
+            text=text,
+            scheduled_for_local=scheduled_for_local,
+            timezone=timezone,
+            kind=ReminderRuleKind.ONE_TIME,
+        )
+
+    async def create_reminder(
+        self,
+        *,
+        telegram_user_id: int,
+        text: str,
+        scheduled_for_local: str,
+        timezone: str,
+        kind: ReminderRuleKind,
+    ) -> ReminderEnvelope:
         user = await self._require_user(telegram_user_id)
         pair, partner = await self._require_active_pair(user)
 
@@ -60,10 +78,11 @@ class ReminderService:
             raise ValidationError("Время напоминания должно быть в будущем.")
 
         await self._users.set_timezone(user.id, timezone)
-        rule, occurrence = await self._reminders.create_one_time_reminder(
+        rule, occurrence = await self._reminders.create_reminder(
             pair_id=pair.id,
             creator_user_id=user.id,
             recipient_user_id=partner.id,
+            kind=kind,
             text=clean_text,
             creator_timezone=timezone,
             scheduled_at_utc=scheduled_at_utc,
@@ -81,6 +100,7 @@ class ReminderService:
                 'pair_id': envelope.rule.pair_id,
                 'recipient_user_id': envelope.recipient.id,
                 'scheduled_at_utc': envelope.occurrence.scheduled_at_utc.isoformat(),
+                'kind': envelope.rule.kind.value,
             },
         )
         return envelope
@@ -158,11 +178,16 @@ class ReminderService:
             now=now,
         )
         envelope = await self._build_envelope_from_occurrence(occurrence)
+        await self._schedule_next_occurrence_if_needed(envelope.rule, occurrence, now=now)
         await self._audit_event(
             action='reminder_delivered',
             entity_id=envelope.occurrence.id,
             actor_user_id=envelope.creator.id,
-            payload={'telegram_message_id': telegram_message_id, 'recipient_user_id': envelope.recipient.id},
+            payload={
+                'telegram_message_id': telegram_message_id,
+                'recipient_user_id': envelope.recipient.id,
+                'kind': envelope.rule.kind.value,
+            },
         )
         return envelope
 
@@ -281,6 +306,29 @@ class ReminderService:
             raise NotFoundError("Участники напоминания не найдены.")
         return ReminderEnvelope(rule=rule, occurrence=occurrence, creator=creator, recipient=recipient)
 
+    async def _schedule_next_occurrence_if_needed(
+        self,
+        rule: ReminderRule,
+        occurrence: ReminderOccurrence,
+        *,
+        now: datetime,
+    ) -> ReminderOccurrence | None:
+        if rule.status is not ReminderRuleStatus.ACTIVE:
+            return None
+        if rule.kind is ReminderRuleKind.ONE_TIME:
+            return None
+        next_scheduled_at = _compute_next_occurrence(rule, occurrence.scheduled_at_utc)
+        if await self._reminders.occurrence_exists(rule_id=rule.id, scheduled_at_utc=next_scheduled_at):
+            return None
+        next_occurrence = await self._reminders.create_occurrence(rule=rule, scheduled_at_utc=next_scheduled_at, now=now)
+        await self._audit_event(
+            action='reminder_recurring_instance_created',
+            entity_id=next_occurrence.id,
+            actor_user_id=rule.creator_user_id,
+            payload={'rule_id': rule.id, 'kind': rule.kind.value, 'scheduled_at_utc': next_scheduled_at.isoformat()},
+        )
+        return next_occurrence
+
 
     async def _audit_event(
         self,
@@ -338,3 +386,34 @@ def _parse_local_datetime_to_utc(value: str, timezone_name: str) -> datetime:
         raise ValidationError("Неизвестный часовой пояс.") from error
     aware = local_naive.replace(tzinfo=tz)
     return aware.astimezone(UTC)
+
+
+def _compute_next_occurrence(rule: ReminderRule, scheduled_at_utc: datetime) -> datetime:
+    try:
+        tz = ZoneInfo(rule.creator_timezone)
+    except ZoneInfoNotFoundError as error:
+        raise ValidationError('Неизвестный часовой пояс создателя напоминания.') from error
+    local_dt = scheduled_at_utc.astimezone(tz)
+    if rule.kind is ReminderRuleKind.DAILY:
+        next_local = local_dt + timedelta(days=1)
+    elif rule.kind is ReminderRuleKind.WEEKLY:
+        next_local = local_dt + timedelta(days=7)
+    elif rule.kind is ReminderRuleKind.WEEKDAYS:
+        next_local = local_dt + timedelta(days=1)
+        while next_local.weekday() >= 5:
+            next_local += timedelta(days=1)
+    else:
+        raise ValidationError('Для этого типа напоминания повтор не поддерживается.')
+    return next_local.astimezone(UTC)
+
+
+def reminder_kind_label(kind: ReminderRuleKind) -> str:
+    if kind is ReminderRuleKind.ONE_TIME:
+        return 'Один раз'
+    if kind is ReminderRuleKind.DAILY:
+        return 'Каждый день'
+    if kind is ReminderRuleKind.WEEKDAYS:
+        return 'По будням'
+    if kind is ReminderRuleKind.WEEKLY:
+        return 'Раз в неделю'
+    return kind.value

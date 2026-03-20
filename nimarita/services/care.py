@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from nimarita.catalog import CARE_TEMPLATE_DEFINITIONS, CareQuickReplySeed, get_quick_reply
 from nimarita.config import Settings
+from nimarita.domain.enums import RelationshipRole
 from nimarita.domain.errors import ConflictError, NotFoundError, ValidationError
 from nimarita.domain.models import CareDispatch, CareEnvelope, CareTemplate, User
 from nimarita.repositories.care import CareRepository
@@ -53,8 +54,12 @@ class CareService:
     async def list_templates(self, *, telegram_user_id: int, category: str | None = None) -> list[CareTemplate]:
         await self._ensure_seeded()
         user = await self._require_user(telegram_user_id)
-        await self._require_active_pair(user)
-        return await self._care.list_templates(category=category)
+        _pair, partner = await self._require_active_pair(user)
+        return await self._care.list_templates(
+            category=category,
+            sender_role=user.relationship_role,
+            recipient_role=partner.relationship_role,
+        )
 
     async def list_history(self, *, telegram_user_id: int, limit: int = 50) -> list[CareEnvelope]:
         await self._ensure_seeded()
@@ -76,6 +81,50 @@ class CareService:
             },
         )
         return prepared
+
+    async def queue_custom(
+        self,
+        *,
+        telegram_user_id: int,
+        title: str,
+        body: str,
+        emoji: str = '💌',
+    ) -> CareEnvelope:
+        await self._ensure_seeded()
+        user = await self._require_user(telegram_user_id)
+        pair, partner = await self._require_active_pair(user)
+        if partner.private_chat_id is None or not partner.started_bot:
+            raise ConflictError('Партнёр ещё не готов к доставке. Он должен хотя бы один раз запустить бота.')
+        clean_title = _normalize_short_text(title, fallback='Моё сообщение')
+        clean_body = _normalize_body(body)
+        if len(clean_title) > 80:
+            raise ValidationError('Заголовок сообщения заботы слишком длинный. Максимум 80 символов.')
+        if len(clean_body) > 1000:
+            raise ValidationError('Текст сообщения заботы слишком длинный. Максимум 1000 символов.')
+        await self._enforce_rate_limits(user_id=user.id, pair_id=pair.id, template_code='custom')
+        dispatch = await self._care.create_custom_dispatch(
+            pair_id=pair.id,
+            sender_user_id=user.id,
+            recipient_user_id=partner.id,
+            category='custom',
+            category_label='Мои сообщения',
+            title=clean_title,
+            body=clean_body,
+            emoji=(emoji or '💌').strip()[:4] or '💌',
+            now=datetime.now(tz=UTC),
+        )
+        envelope = await self._build_envelope(dispatch)
+        await self._audit_event(
+            action='care_custom_queued',
+            entity_id=envelope.dispatch.id,
+            actor_user_id=envelope.sender.id,
+            payload={
+                'pair_id': envelope.dispatch.pair_id,
+                'recipient_user_id': envelope.recipient.id,
+                'title': envelope.dispatch.title,
+            },
+        )
+        return envelope
 
     async def send_template_now(
         self,
@@ -233,6 +282,56 @@ class CareService:
         )
         return CareReplyResult(envelope=envelope, reply=reply)
 
+    async def register_custom_reply(
+        self,
+        *,
+        telegram_user_id: int,
+        dispatch_id: int,
+        title: str,
+        body: str,
+        emoji: str = '💗',
+    ) -> CareReplyResult:
+        await self._ensure_seeded()
+        actor = await self._require_user(telegram_user_id)
+        clean_title = _normalize_short_text(title, fallback='Мой ответ')
+        clean_body = _normalize_body(body)
+        if len(clean_title) > 80:
+            raise ValidationError('Заголовок ответа слишком длинный. Максимум 80 символов.')
+        if len(clean_body) > 1000:
+            raise ValidationError('Текст ответа слишком длинный. Максимум 1000 символов.')
+        try:
+            dispatch = await self._care.register_response(
+                dispatch_id=dispatch_id,
+                recipient_user_id=actor.id,
+                response_code='custom',
+                response_title=clean_title,
+                response_body=clean_body,
+                response_emoji=(emoji or '💗').strip()[:4] or '💗',
+                now=datetime.now(tz=UTC),
+            )
+        except LookupError as error:
+            raise NotFoundError('Сообщение заботы не найдено.') from error
+        except PermissionError as error:
+            raise ConflictError(str(error)) from error
+        except ValueError as error:
+            raise ConflictError(str(error)) from error
+        envelope = await self._build_envelope(dispatch)
+        reply = CareQuickReplySeed(
+            code='custom',
+            category='custom',
+            title=clean_title,
+            body=clean_body,
+            emoji=(emoji or '💗').strip()[:4] or '💗',
+            sort_order=0,
+        )
+        await self._audit_event(
+            action='care_custom_responded',
+            entity_id=envelope.dispatch.id,
+            actor_user_id=actor.id,
+            payload={'sender_user_id': envelope.sender.id, 'title': clean_title},
+        )
+        return CareReplyResult(envelope=envelope, reply=reply)
+
     async def _prepare_dispatch(self, *, telegram_user_id: int, template_code: str) -> CareEnvelope:
         user = await self._require_user(telegram_user_id)
         pair, partner = await self._require_active_pair(user)
@@ -241,6 +340,7 @@ class CareService:
         template = await self._care.get_template_by_code(template_code)
         if template is None:
             raise NotFoundError('Шаблон заботы не найден.')
+        self._ensure_template_matches_roles(template=template, sender=user, recipient=partner)
         await self._enforce_rate_limits(user_id=user.id, pair_id=pair.id, template_code=template_code)
         dispatch = await self._care.create_dispatch(
             pair_id=pair.id,
@@ -271,14 +371,15 @@ class CareService:
         )
         if hour_count >= self._settings.care_per_hour_limit:
             raise ConflictError('Достигнут часовой лимит сообщений заботы. Лучше дать переписке подышать.')
-        duplicated = await self._care.has_recent_duplicate(
-            sender_user_id=user_id,
-            pair_id=pair_id,
-            template_code=template_code,
-            since=now - timedelta(minutes=self._settings.care_duplicate_window_minutes),
-        )
-        if duplicated:
-            raise ConflictError('Этот же шаблон уже недавно отправлялся. Выбери другой или подожди немного.')
+        if template_code != 'custom':
+            duplicated = await self._care.has_recent_duplicate(
+                sender_user_id=user_id,
+                pair_id=pair_id,
+                template_code=template_code,
+                since=now - timedelta(minutes=self._settings.care_duplicate_window_minutes),
+            )
+            if duplicated:
+                raise ConflictError('Этот же шаблон уже недавно отправлялся. Выбери другой или подожди немного.')
 
     async def _build_envelope(self, dispatch: CareDispatch) -> CareEnvelope:
         sender = await self._users.get_by_id(dispatch.sender_user_id)
@@ -307,10 +408,14 @@ class CareService:
     async def _ensure_seeded(self) -> None:
         if self._seeded:
             return
-        count = await self._care.count_templates()
-        if count == 0:
-            await self._care.seed_templates(CARE_TEMPLATE_DEFINITIONS, now=datetime.now(tz=UTC))
+        await self._care.seed_templates(CARE_TEMPLATE_DEFINITIONS, now=datetime.now(tz=UTC))
         self._seeded = True
+
+    def _ensure_template_matches_roles(self, *, template: CareTemplate, sender: User, recipient: User) -> None:
+        if template.sender_role not in {RelationshipRole.UNSPECIFIED, sender.relationship_role}:
+            raise ConflictError('Этот вариант заботы не подходит для твоей выбранной роли.')
+        if template.recipient_role not in {RelationshipRole.UNSPECIFIED, recipient.relationship_role}:
+            raise ConflictError('Этот вариант заботы не подходит для роли партнёра.')
 
     async def _require_user(self, telegram_user_id: int) -> User:
         user = await self._users.get_by_telegram_user_id(telegram_user_id)
@@ -344,3 +449,16 @@ class CareService:
             actor_user_id=actor_user_id,
             payload=payload,
         )
+
+
+def _normalize_short_text(text: str, *, fallback: str) -> str:
+    clean = ' '.join((text or '').strip().split())
+    return clean or fallback
+
+
+def _normalize_body(text: str) -> str:
+    clean = '\n'.join(part.strip() for part in str(text or '').splitlines())
+    clean = '\n'.join(part for part in clean.split('\n') if part)
+    if not clean:
+        raise ValidationError('Текст сообщения не должен быть пустым.')
+    return clean

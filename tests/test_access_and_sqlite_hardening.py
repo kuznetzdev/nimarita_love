@@ -4,8 +4,9 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from nimarita.config import Settings
+from nimarita.config import Settings, load_settings
 from nimarita.domain.errors import AccessDeniedError
 from nimarita.domain.models import TelegramUserSnapshot
 from nimarita.infra import SQLiteDatabase
@@ -70,6 +71,23 @@ class AccessAndSqliteHardeningTestCase(unittest.IsolatedAsyncioTestCase):
                 TelegramUserSnapshot(telegram_user_id=202, chat_id=202, username='bob', first_name='Bob', last_name=None, language_code='ru')
             )
         await db.close()
+
+    async def test_load_settings_prefers_railway_volume_and_safe_journal_mode(self) -> None:
+        volume_path = Path(self._tmp.name) / 'volume'
+        env = {
+            'BOT_TOKEN': '123:TEST',
+            'BOT_USERNAME': 'testbot',
+            'WEBAPP_PUBLIC_URL': 'https://example.com/app',
+            'APP_SESSION_SECRET': 'secret',
+            'RAILWAY_VOLUME_MOUNT_PATH': str(volume_path),
+            'SQLITE_JOURNAL_MODE': 'AUTO',
+        }
+        with patch.dict('os.environ', env, clear=True):
+            settings = load_settings()
+
+        self.assertEqual(settings.database_path, volume_path / 'nimarita.db')
+        self.assertEqual(settings.backup_directory, volume_path / 'backups')
+        self.assertEqual(settings.sqlite_journal_mode, 'DELETE')
 
     async def test_sqlite_backup_audit_and_active_pair_trigger(self) -> None:
         db = SQLiteDatabase(self.db_path, synchronous='FULL')

@@ -9,57 +9,174 @@
       :root {
         --bg: #ffffff;
         --surface: #f4f6fb;
+        --surface-2: #edf2ff;
         --card: #ffffff;
         --text: #162033;
         --muted: #5f6b7d;
         --border: rgba(22, 32, 51, 0.08);
         --accent: #4c8bf5;
+        --accent-soft: rgba(76, 139, 245, 0.12);
         --danger: #d14d72;
+        --danger-soft: rgba(209, 77, 114, 0.12);
         --success: #2f9d69;
+        --success-soft: rgba(47, 157, 105, 0.12);
         --warning: #d68720;
+        --warning-soft: rgba(214, 135, 32, 0.14);
+        --shadow: 0 8px 22px rgba(21, 31, 52, 0.05);
       }
+
       * { box-sizing: border-box; }
+
       body {
         margin: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         background: var(--bg);
         color: var(--text);
       }
+
       .app {
         min-height: 100vh;
-        padding: calc(20px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
-        background: linear-gradient(180deg, rgba(76, 139, 245, 0.10), transparent 120px), var(--bg);
+        padding: calc(20px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
+        background: linear-gradient(180deg, rgba(76, 139, 245, 0.10), transparent 160px), var(--bg);
       }
-      .stack { display: grid; gap: 14px; }
-      .hero, .card {
+
+      .stack {
+        display: grid;
+        gap: 14px;
+        max-width: 760px;
+        margin: 0 auto;
+      }
+
+      .card,
+      .hero {
         padding: 16px;
-        border-radius: 18px;
+        border-radius: 20px;
         background: var(--card);
         border: 1px solid var(--border);
-        box-shadow: 0 8px 22px rgba(21, 31, 52, 0.05);
+        box-shadow: var(--shadow);
       }
-      .hero { background: var(--surface); }
-      .eyebrow, .placeholder, .pill {
+
+      .hero {
+        background: linear-gradient(180deg, rgba(76, 139, 245, 0.12), transparent 100%), var(--surface);
+      }
+
+      .badge,
+      .pill,
+      .tiny-pill {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        padding: 6px 10px;
         border-radius: 999px;
         font-size: 12px;
         font-weight: 700;
       }
-      .eyebrow { background: rgba(76, 139, 245, 0.14); color: var(--accent); }
-      .placeholder { background: rgba(47, 157, 105, 0.12); color: var(--success); }
-      .pill { background: rgba(76, 139, 245, 0.12); color: var(--accent); }
-      .pill.status-delivered, .pill.status-acknowledged, .pill.status-sent, .pill.status-responded { background: rgba(47, 157, 105, 0.12); color: var(--success); }
-      .pill.status-cancelled, .pill.status-failed { background: rgba(209, 77, 114, 0.12); color: var(--danger); }
-      .pill.status-processing, .pill.status-pending { background: rgba(214, 135, 32, 0.12); color: var(--warning); }
-      h1 { margin: 12px 0 8px; font-size: 28px; line-height: 1.1; }
-      h2 { margin: 0 0 10px; font-size: 18px; }
-      p { margin: 0; line-height: 1.45; color: var(--muted); }
-      .actions, .grid { display: grid; gap: 10px; }
-      .row { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
-      .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+
+      .badge,
+      .pill {
+        padding: 6px 10px;
+      }
+
+      .tiny-pill {
+        padding: 5px 8px;
+      }
+
+      .badge {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .pill {
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .pill.status-scheduled,
+      .pill.status-processing,
+      .pill.status-pending,
+      .notice-warning {
+        background: var(--warning-soft);
+        color: var(--warning);
+      }
+
+      .pill.status-delivered,
+      .pill.status-acknowledged,
+      .pill.status-sent,
+      .pill.status-responded,
+      .notice-success {
+        background: var(--success-soft);
+        color: var(--success);
+      }
+
+      .pill.status-failed,
+      .pill.status-cancelled,
+      .notice-error {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+
+      h1 {
+        margin: 12px 0 8px;
+        font-size: 28px;
+        line-height: 1.1;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 20px;
+      }
+
+      h3 {
+        margin: 0;
+        font-size: 16px;
+      }
+
+      p {
+        margin: 0;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+
+      .muted { color: var(--muted); }
+      .strong { color: var(--text); font-weight: 700; }
+      .hidden { display: none !important; }
+      .error-text { color: var(--danger); font-weight: 700; white-space: pre-wrap; }
+
+      .header-row,
+      .row,
+      .split {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+
+      .grid,
+      .actions,
+      .list,
+      .chips,
+      .profile-summary {
+        display: grid;
+        gap: 10px;
+      }
+
+      .profile-summary { gap: 6px; }
+
+      .toolbar,
+      .choice-row,
+      .quick-replies {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--border);
+        margin: 2px 0;
+      }
+
       button {
         border: 0;
         border-radius: 14px;
@@ -67,32 +184,54 @@
         font: inherit;
         font-weight: 700;
         cursor: pointer;
+        transition: transform 0.12s ease, opacity 0.12s ease;
       }
-      .primary { background: var(--accent); color: white; }
-      .secondary { background: var(--surface); color: var(--text); }
-      .danger { background: rgba(209, 77, 114, 0.12); color: var(--danger); }
-      .success { background: rgba(47, 157, 105, 0.12); color: var(--success); }
-      .linkbox {
-        display: grid;
-        gap: 8px;
-        margin-top: 14px;
-        padding: 12px;
-        border-radius: 14px;
+
+      button:active { transform: translateY(1px); }
+      button[disabled] { opacity: 0.58; cursor: default; transform: none; }
+
+      .primary {
+        background: var(--accent);
+        color: white;
+      }
+
+      .secondary,
+      .choice {
         background: var(--surface);
-        border: 1px dashed var(--border);
-      }
-      .linkbox code {
-        display: block;
-        padding: 10px;
-        border-radius: 12px;
-        background: var(--card);
         color: var(--text);
-        overflow-wrap: anywhere;
       }
-      .hidden { display: none !important; }
-      .error { color: var(--danger); font-weight: 600; white-space: pre-wrap; }
-      label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
-      textarea, input, select {
+
+      .choice.is-selected {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .danger {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+
+      .success {
+        background: var(--success-soft);
+        color: var(--success);
+      }
+
+      .ghost {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--border);
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      input,
+      textarea,
+      select {
         width: 100%;
         border: 1px solid var(--border);
         border-radius: 14px;
@@ -101,53 +240,171 @@
         color: var(--text);
         font: inherit;
       }
-      textarea { min-height: 108px; resize: vertical; }
-      .meta { font-size: 12px; color: var(--muted); }
-      .text-strong { font-weight: 700; color: var(--text); }
-      .reminder-list, .care-template-list, .care-history-list { display: grid; gap: 10px; }
-      .reminder-item, .care-template-item, .care-history-item {
+
+      textarea {
+        min-height: 108px;
+        resize: vertical;
+      }
+
+      .meta {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .notice-card {
+        padding: 12px 14px;
+      }
+
+      .linkbox,
+      .item,
+      .history-item,
+      .template-item,
+      .reminder-item,
+      .reply-box {
+        border-radius: 16px;
         border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 12px;
         background: var(--surface);
+        padding: 12px;
+      }
+
+      .linkbox,
+      .item,
+      .history-item,
+      .template-item,
+      .reminder-item {
         display: grid;
         gap: 8px;
       }
-      .care-template-item .template-title { font-weight: 700; }
-      .care-template-item .template-body, .care-history-item .history-body { color: var(--muted); line-height: 1.4; }
-      .care-history-item.inbound { border-left: 4px solid rgba(47, 157, 105, 0.45); }
-      .care-history-item.outbound { border-left: 4px solid rgba(76, 139, 245, 0.45); }
-      .section-separator { height: 1px; background: var(--border); margin: 4px 0; }
+
+      .reply-box {
+        display: grid;
+        gap: 8px;
+        background: var(--card);
+      }
+
+      .history-item.inbound { border-left: 4px solid rgba(47, 157, 105, 0.45); }
+      .history-item.outbound { border-left: 4px solid rgba(76, 139, 245, 0.45); }
+
+      .template-body,
+      .history-body,
+      .reply-body,
+      .reminder-body {
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .template-title,
+      .history-title,
+      .reminder-title {
+        font-weight: 700;
+      }
+
+      .category-group {
+        display: grid;
+        gap: 8px;
+      }
+
+      .category-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .emoji-input {
+        max-width: 92px;
+        text-align: center;
+      }
+
+      .copy-line {
+        display: grid;
+        gap: 8px;
+      }
+
+      .copy-value {
+        display: block;
+        width: 100%;
+        overflow-wrap: anywhere;
+        background: var(--card);
+        padding: 10px 12px;
+        border-radius: 12px;
+        color: var(--text);
+        border: 1px solid var(--border);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+      }
+
+      .status-line {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .empty-state {
+        padding: 12px;
+        border-radius: 14px;
+        background: var(--surface);
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
     <div class="app">
       <div class="stack">
         <section class="hero">
-          <span class="eyebrow">Nimarita · production pair/care runtime</span>
-          <h1>Подтверждённая пара 1↔1</h1>
+          <span class="badge">Наше пространство 💖</span>
+          <h1>Пара, напоминания и заботливые сообщения</h1>
           <p>
-            В этой версии уже работают pair-flow, reminders и полноценный care layer: большой каталог шаблонов,
-            история отправок, быстрые ответы через inline-кнопки и автоочистка карточек после действия.
+            Здесь можно подтверждать пару, видеть кто есть кто, ставить разовые и регулярные напоминания,
+            отправлять готовые или свои сообщения заботы и отвечать на них прямо из приложения.
           </p>
         </section>
 
+        <section id="notice" class="card notice-card hidden">
+          <p id="notice-text" class="strong"></p>
+        </section>
+
         <section id="loading" class="card">
-          <h2>Инициализация</h2>
-          <p id="loading-text">Проверяю Telegram-auth, поднимаю сессию и загружаю состояние пары. Если Railway спал, первый ответ может занять до 25 секунд.</p>
+          <h2>Открываю пространство</h2>
+          <p>
+            Проверяю Telegram-вход и загружаю ваши данные. Если сервис в Railway только просыпается,
+            первый ответ может прийти чуть медленнее обычного.
+          </p>
         </section>
 
         <section id="error" class="card hidden">
-          <h2>Что-то пошло не так</h2>
-          <p id="error-text" class="error"></p>
+          <h2>Не получилось открыть приложение</h2>
+          <p id="error-text" class="error-text"></p>
           <div class="actions">
-            <button id="retry-bootstrap" class="secondary">Повторить</button>
+            <button id="retry-bootstrap" class="secondary">Попробовать ещё раз</button>
+          </div>
+        </section>
+
+        <section id="profile-card" class="card hidden">
+          <div class="header-row">
+            <h2>Кто есть кто</h2>
+            <span class="badge">Для понятных ролей и подсказок</span>
+          </div>
+          <div class="profile-summary">
+            <p id="role-summary"></p>
+            <p id="partner-role-summary" class="meta"></p>
+          </div>
+          <div class="choice-row">
+            <button id="role-woman" class="choice" type="button">Я девушка</button>
+            <button id="role-man" class="choice" type="button">Я парень</button>
+            <button id="role-unspecified" class="choice" type="button">Не указывать</button>
           </div>
         </section>
 
         <section id="no-pair" class="card hidden">
           <h2>Пары пока нет</h2>
-          <p>Создай одноразовое приглашение. Система строго поддерживает только одну активную пару 1↔1.</p>
+          <p>
+            Создай приглашение и отправь его партнёру. После подтверждения откроются общие напоминания
+            и заботливые сообщения.
+          </p>
           <div class="actions">
             <button id="create-invite" class="primary">Создать приглашение 💞</button>
           </div>
@@ -155,16 +412,16 @@
         </section>
 
         <section id="outgoing" class="card hidden">
-          <h2>Исходящее приглашение уже есть</h2>
+          <h2>Приглашение уже создано</h2>
           <p id="outgoing-text"></p>
           <div class="actions">
-            <button id="refresh-invite" class="secondary">Сгенерировать новое приглашение</button>
+            <button id="refresh-invite" class="secondary">Создать новое приглашение</button>
           </div>
           <div id="invite-links-repeat" class="linkbox hidden"></div>
         </section>
 
         <section id="incoming" class="card hidden">
-          <h2>Входящее приглашение</h2>
+          <h2>Тебя приглашают в пару</h2>
           <p id="incoming-text"></p>
           <div class="actions">
             <button id="accept-invite" class="primary">Подтвердить пару 💌</button>
@@ -173,14 +430,18 @@
         </section>
 
         <section id="active" class="card hidden">
-          <div class="row">
-            <span class="placeholder">Care + reminders включены</span>
-            <button id="refresh-state" class="secondary">Обновить</button>
+          <div class="header-row">
+            <span class="badge">Связь подтверждена</span>
+            <div class="toolbar">
+              <button id="refresh-state" class="secondary" type="button">Обновить</button>
+              <button id="unpair" class="danger" type="button">Разорвать пару</button>
+            </div>
           </div>
-          <h2>Пара активна</h2>
+          <h2>Вы вместе</h2>
           <p id="active-text"></p>
-          <div class="actions">
-            <button id="unpair" class="danger">Разорвать пару</button>
+          <div class="status-line">
+            <span id="active-role-user" class="tiny-pill"></span>
+            <span id="active-role-partner" class="tiny-pill"></span>
           </div>
         </section>
 
@@ -189,56 +450,90 @@
           <div class="grid">
             <label>
               Текст напоминания
-              <textarea id="reminder-text" placeholder="Например: не забудь поесть и отдохнуть"></textarea>
+              <textarea id="reminder-text" placeholder="Например: поешь, пожалуйста, и возьми себе паузу"></textarea>
             </label>
-            <label>
-              Когда отправить
-              <input id="reminder-datetime" type="datetime-local" />
-            </label>
-            <p class="meta" id="reminder-meta"></p>
-            <button id="create-reminder" class="primary">Создать напоминание ⏰</button>
+            <div class="split">
+              <label style="flex: 1 1 220px;">
+                Когда отправить
+                <input id="reminder-datetime" type="datetime-local" />
+              </label>
+              <label style="flex: 1 1 180px;">
+                Частота
+                <select id="reminder-kind">
+                  <option value="one_time">Один раз</option>
+                  <option value="daily">Каждый день</option>
+                  <option value="weekdays">По будням</option>
+                  <option value="weekly">Раз в неделю</option>
+                </select>
+              </label>
+            </div>
+            <p id="reminder-meta" class="meta"></p>
+            <div class="actions">
+              <button id="create-reminder" class="primary" type="button">Сохранить напоминание ⏰</button>
+            </div>
           </div>
         </section>
 
         <section id="reminders-card" class="card hidden">
-          <div class="row">
-            <h2>Текущие напоминания</h2>
+          <div class="header-row">
+            <h2>Напоминания</h2>
             <span id="reminders-counter" class="meta"></span>
           </div>
-          <div id="empty-reminders" class="meta">Пока напоминаний нет.</div>
-          <div id="reminder-list" class="reminder-list"></div>
+          <div id="empty-reminders" class="empty-state">Пока напоминаний нет.</div>
+          <div id="reminder-list" class="list"></div>
         </section>
 
         <section id="care-browser-card" class="card hidden">
-          <div class="row">
-            <h2>Care layer</h2>
+          <div class="header-row">
+            <h2>Заботливые сообщения</h2>
             <span id="care-counter" class="meta"></span>
           </div>
-          <p>Выбери категорию, найди подходящий шаблон и отправь его партнёру одним тапом.</p>
+          <p>Выбери категорию и отправь подходящее сообщение одним нажатием.</p>
           <div class="toolbar">
             <select id="care-category"></select>
-            <button id="care-random" class="secondary">Случайный care 💌</button>
+            <button id="care-random" class="secondary" type="button">Случайное сообщение 💌</button>
           </div>
-          <div class="section-separator"></div>
-          <div id="care-template-list" class="care-template-list"></div>
+          <div class="divider"></div>
+          <div id="care-template-list" class="list"></div>
+        </section>
+
+        <section id="custom-care-card" class="card hidden">
+          <h2>Своё заботливое сообщение</h2>
+          <div class="grid">
+            <div class="split">
+              <label style="flex: 0 0 92px;">
+                Эмодзи
+                <input id="custom-care-emoji" class="emoji-input" maxlength="4" placeholder="💌" />
+              </label>
+              <label style="flex: 1 1 260px;">
+                Заголовок
+                <input id="custom-care-title" maxlength="80" placeholder="Например: Просто хочу тебя поддержать" />
+              </label>
+            </div>
+            <label>
+              Текст сообщения
+              <textarea id="custom-care-body" placeholder="Напиши своё тёплое сообщение партнёру"></textarea>
+            </label>
+            <div class="actions">
+              <button id="send-custom-care" class="primary" type="button">Отправить своё сообщение ✨</button>
+            </div>
+          </div>
         </section>
 
         <section id="care-history-card" class="card hidden">
-          <div class="row">
-            <h2>История care-сообщений</h2>
-            <button id="care-history-refresh" class="secondary">Обновить историю</button>
+          <div class="header-row">
+            <h2>История заботы</h2>
+            <button id="care-history-refresh" class="secondary" type="button">Обновить историю</button>
           </div>
-          <div id="empty-care-history" class="meta">История пока пустая.</div>
-          <div id="care-history-list" class="care-history-list"></div>
+          <div id="empty-care-history" class="empty-state">История пока пустая.</div>
+          <div id="care-history-list" class="list"></div>
         </section>
       </div>
     </div>
 
     <script>
-      // ========================================
-      // API Configuration
-      // ========================================
       const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
+      const tg = window.Telegram?.WebApp || null;
 
       function normalizeApiBase(value) {
         const normalized = String(value || '').trim();
@@ -247,21 +542,33 @@
       }
 
       const API_BASE = normalizeApiBase(RAW_API_BASE);
-      const tg = window.Telegram?.WebApp;
+
       const state = {
         sessionToken: null,
+        currentState: null,
         inviteToken: null,
         inviteId: null,
-        currentState: null,
+        reminders: [],
         careTemplates: [],
         careHistory: [],
         careCategory: 'all',
+        noticeTimer: null,
+        autoRefreshTimer: null,
       };
 
       const el = {
+        notice: document.getElementById('notice'),
+        noticeText: document.getElementById('notice-text'),
         loading: document.getElementById('loading'),
         error: document.getElementById('error'),
         errorText: document.getElementById('error-text'),
+        retryBootstrap: document.getElementById('retry-bootstrap'),
+        profileCard: document.getElementById('profile-card'),
+        roleSummary: document.getElementById('role-summary'),
+        partnerRoleSummary: document.getElementById('partner-role-summary'),
+        roleWoman: document.getElementById('role-woman'),
+        roleMan: document.getElementById('role-man'),
+        roleUnspecified: document.getElementById('role-unspecified'),
         noPair: document.getElementById('no-pair'),
         outgoing: document.getElementById('outgoing'),
         outgoingText: document.getElementById('outgoing-text'),
@@ -269,459 +576,712 @@
         incomingText: document.getElementById('incoming-text'),
         active: document.getElementById('active'),
         activeText: document.getElementById('active-text'),
+        activeRoleUser: document.getElementById('active-role-user'),
+        activeRolePartner: document.getElementById('active-role-partner'),
         inviteLinks: document.getElementById('invite-links'),
         inviteLinksRepeat: document.getElementById('invite-links-repeat'),
+        createInvite: document.getElementById('create-invite'),
+        refreshInvite: document.getElementById('refresh-invite'),
+        acceptInvite: document.getElementById('accept-invite'),
+        rejectInvite: document.getElementById('reject-invite'),
+        refreshState: document.getElementById('refresh-state'),
+        unpair: document.getElementById('unpair'),
         reminderFormCard: document.getElementById('reminder-form-card'),
-        remindersCard: document.getElementById('reminders-card'),
         reminderText: document.getElementById('reminder-text'),
         reminderDatetime: document.getElementById('reminder-datetime'),
+        reminderKind: document.getElementById('reminder-kind'),
         reminderMeta: document.getElementById('reminder-meta'),
-        reminderList: document.getElementById('reminder-list'),
+        createReminder: document.getElementById('create-reminder'),
+        remindersCard: document.getElementById('reminders-card'),
         remindersCounter: document.getElementById('reminders-counter'),
         emptyReminders: document.getElementById('empty-reminders'),
+        reminderList: document.getElementById('reminder-list'),
         careBrowserCard: document.getElementById('care-browser-card'),
-        careHistoryCard: document.getElementById('care-history-card'),
-        careTemplateList: document.getElementById('care-template-list'),
-        careHistoryList: document.getElementById('care-history-list'),
-        emptyCareHistory: document.getElementById('empty-care-history'),
         careCounter: document.getElementById('care-counter'),
         careCategory: document.getElementById('care-category'),
-        retryBootstrap: document.getElementById('retry-bootstrap'),
+        careRandom: document.getElementById('care-random'),
+        careTemplateList: document.getElementById('care-template-list'),
+        customCareCard: document.getElementById('custom-care-card'),
+        customCareEmoji: document.getElementById('custom-care-emoji'),
+        customCareTitle: document.getElementById('custom-care-title'),
+        customCareBody: document.getElementById('custom-care-body'),
+        sendCustomCare: document.getElementById('send-custom-care'),
+        careHistoryCard: document.getElementById('care-history-card'),
+        careHistoryRefresh: document.getElementById('care-history-refresh'),
+        emptyCareHistory: document.getElementById('empty-care-history'),
+        careHistoryList: document.getElementById('care-history-list'),
       };
 
-      const API_REQUEST_TIMEOUT_MS = 25000;
       const sectionMap = {
         loading: el.loading,
         error: el.error,
-        'no-pair': el.noPair,
-        outgoing: el.outgoing,
-        incoming: el.incoming,
+        no_pair: el.noPair,
+        outgoing_invite: el.outgoing,
+        incoming_invite: el.incoming,
         active: el.active,
       };
 
+      const reminderStatusLabels = {
+        scheduled: 'Запланировано',
+        processing: 'Отправляется',
+        delivered: 'Доставлено',
+        acknowledged: 'Подтверждено',
+        failed: 'Ошибка',
+        cancelled: 'Отменено',
+        pending: 'Ожидает',
+      };
+
+      const careStatusLabels = {
+        pending: 'В очереди',
+        processing: 'Отправляется',
+        sent: 'Отправлено',
+        responded: 'Есть ответ',
+        failed: 'Ошибка',
+      };
+
+      const replySuggestions = [
+        { emoji: '💖', title: 'Спасибо', message: 'Спасибо, это очень тепло и приятно.' },
+        { emoji: '🤍', title: 'Обнимаю в ответ', message: 'Обнимаю тебя в ответ и тоже очень ценю.' },
+        { emoji: '🫶', title: 'Люблю тебя', message: 'Люблю тебя и беру твоё тепло с собой.' },
+      ];
+
       function applyTheme() {
-        if (!tg?.themeParams) return;
-        const theme = tg.themeParams;
-        document.documentElement.style.setProperty('--bg', theme.bg_color || '#ffffff');
-        document.documentElement.style.setProperty('--card', theme.secondary_bg_color || theme.bg_color || '#ffffff');
-        document.documentElement.style.setProperty('--surface', theme.section_bg_color || '#f4f6fb');
-        document.documentElement.style.setProperty('--text', theme.text_color || '#162033');
-        document.documentElement.style.setProperty('--muted', theme.hint_color || '#5f6b7d');
-        document.documentElement.style.setProperty('--accent', theme.button_color || '#4c8bf5');
-        document.documentElement.style.setProperty('--border', theme.section_separator_color || 'rgba(22,32,51,0.08)');
+        const theme = tg?.themeParams || {};
+        const root = document.documentElement;
+        if (theme.bg_color) root.style.setProperty('--bg', theme.bg_color);
+        if (theme.secondary_bg_color) {
+          root.style.setProperty('--surface', theme.secondary_bg_color);
+          root.style.setProperty('--surface-2', theme.secondary_bg_color);
+        }
+        if (theme.text_color) root.style.setProperty('--text', theme.text_color);
+        if (theme.hint_color) root.style.setProperty('--muted', theme.hint_color);
+        if (theme.button_color) root.style.setProperty('--accent', theme.button_color);
+        if (theme.button_text_color) root.style.setProperty('--button-text', theme.button_text_color);
       }
 
-      function getStartParam() {
-        const qp = new URLSearchParams(window.location.search);
-        return qp.get('tgWebAppStartParam') || tg?.initDataUnsafe?.start_param || '';
+      function currentUser() {
+        return state.currentState?.user || null;
       }
 
-      function showOnly(key) {
-        for (const section of Object.values(sectionMap)) {
-          section.classList.add('hidden');
-        }
-        const target = sectionMap[key];
-        if (!target) {
-          throw new Error(`Неизвестная секция интерфейса: ${key}`);
-        }
-        target.classList.remove('hidden');
+      function currentPartner() {
+        return state.currentState?.partner || null;
+      }
+
+      function roleLabel(user) {
+        return user?.relationship_role_label || 'не указано';
+      }
+
+      function showPrimary(key) {
+        Object.entries(sectionMap).forEach(([name, node]) => {
+          node.classList.toggle('hidden', name !== key);
+        });
+      }
+
+      function setProfileVisible(visible) {
+        el.profileCard.classList.toggle('hidden', !visible);
       }
 
       function setActiveBlocksVisible(visible) {
-        el.reminderFormCard.classList.toggle('hidden', !visible);
-        el.remindersCard.classList.toggle('hidden', !visible);
-        el.careBrowserCard.classList.toggle('hidden', !visible);
-        el.careHistoryCard.classList.toggle('hidden', !visible);
+        [
+          el.reminderFormCard,
+          el.remindersCard,
+          el.careBrowserCard,
+          el.customCareCard,
+          el.careHistoryCard,
+        ].forEach((node) => node.classList.toggle('hidden', !visible));
       }
 
-      function buildApiConfigError() {
-        return 'Mini App не настроен: API_BASE пустой. Обратись к администратору.';
-      }
-
-      function buildLaunchContextError() {
-        if (!tg) {
-          return 'Mini App открыт вне Telegram. Открой приложение из бота через menu button или inline-кнопку.';
+      function clearNotice() {
+        if (state.noticeTimer) {
+          window.clearTimeout(state.noticeTimer);
+          state.noticeTimer = null;
         }
-        if (!tg.initData) {
-          return 'Telegram не передал initData. Открой Mini App именно из бота, а не из обычного браузера или предпросмотра ссылки.';
-        }
-        return null;
+        el.notice.className = 'card notice-card hidden';
+        el.noticeText.textContent = '';
       }
 
-      function describeBootstrapFailure(error) {
-        const launchContextError = buildLaunchContextError();
-        if (launchContextError) {
-          return `${launchContextError}
-API: ${API_BASE || 'not configured'}`;
-        }
-        return error?.message || 'Не удалось пройти авторизацию.';
+      function showNotice(text, kind = 'success') {
+        clearNotice();
+        el.noticeText.textContent = text;
+        el.notice.className = `card notice-card notice-${kind}`;
+        state.noticeTimer = window.setTimeout(() => {
+          clearNotice();
+        }, 2800);
       }
 
-      function reportFatalError(error) {
-        const message = error?.message || String(error) || 'Произошла непредвиденная ошибка в Mini App.';
-        try {
-          showError(message, { alert: false });
-        } catch {
-          el.errorText.textContent = message;
-          setActiveBlocksVisible(false);
-          el.error.classList.remove('hidden');
-        }
-      }
-
-      function showError(message, { alert = true } = {}) {
-        el.errorText.textContent = message;
+      function showError(message, { alert = false } = {}) {
+        const text = String(message || 'Неизвестная ошибка.');
+        el.errorText.textContent = text;
+        showPrimary('error');
+        setProfileVisible(false);
         setActiveBlocksVisible(false);
-        showOnly('error');
-        if (alert) tg?.showAlert?.(message);
+        showNotice(text, 'error');
+        if (alert) {
+          try {
+            tg?.showAlert?.(text);
+          } catch (_error) {}
+        }
+      }
+
+      function formatDateTime(value) {
+        if (!value) return '—';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
       }
 
       function buildApiUrl(path) {
         if (!API_BASE) {
-          throw new Error(buildApiConfigError());
+          throw new Error('Приложение пока не настроено: адрес сервера не найден.');
         }
         return `${API_BASE}${path}`;
       }
 
-      async function api(path, options = {}, timeoutMs = API_REQUEST_TIMEOUT_MS) {
+      async function api(path, options = {}) {
         const controller = new AbortController();
-        const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+        const timeoutId = window.setTimeout(() => controller.abort(), 25000);
         const headers = new Headers(options.headers || {});
-        if (options.body !== undefined && !headers.has('Content-Type')) {
+        if (!headers.has('Content-Type') && options.body !== undefined) {
           headers.set('Content-Type', 'application/json');
         }
         if (state.sessionToken) {
           headers.set('Authorization', `Bearer ${state.sessionToken}`);
         }
-
-        let response;
         try {
-          response = await fetch(buildApiUrl(path), {
-            ...options,
+          const response = await fetch(buildApiUrl(path), {
+            method: options.method || 'GET',
             headers,
+            body: options.body,
             signal: controller.signal,
             cache: 'no-store',
+            credentials: 'omit',
           });
+          const contentType = response.headers.get('content-type') || '';
+          const payload = contentType.includes('application/json')
+            ? await response.json()
+            : { ok: response.ok, error: await response.text() };
+          if (!response.ok || payload?.ok === false) {
+            throw new Error(payload?.error || `Ошибка запроса (${response.status}).`);
+          }
+          return payload;
         } catch (error) {
           if (error?.name === 'AbortError') {
-            throw new Error(`Сервер не ответил за ${Math.round(timeoutMs / 1000)} сек.\nRailway может просыпаться после простоя — попробуй ещё раз через 10 сек.`);
-          }
-          if (error instanceof TypeError) {
-            throw new Error(`Нет связи с сервером.\nAPI: ${API_BASE}\nПроверь доступность Railway.`);
+            throw new Error('Сервер отвечает слишком долго. Похоже, сервис только просыпается — попробуй ещё раз.');
           }
           throw error;
         } finally {
-          window.clearTimeout(timer);
+          window.clearTimeout(timeoutId);
         }
+      }
 
-        const contentType = response.headers.get('content-type') || '';
-        let data = null;
-        let responseText = '';
-        if (contentType.includes('application/json')) {
-          try {
-            data = await response.json();
-          } catch {
-            data = null;
+      function getStartParam() {
+        const url = new URL(window.location.href);
+        return (
+          tg?.initDataUnsafe?.start_param ||
+          url.searchParams.get('startapp') ||
+          url.searchParams.get('start_param') ||
+          ''
+        ).trim();
+      }
+
+      async function copyText(value) {
+        const text = String(value || '').trim();
+        if (!text) return;
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            const area = document.createElement('textarea');
+            area.value = text;
+            area.style.position = 'fixed';
+            area.style.opacity = '0';
+            document.body.appendChild(area);
+            area.focus();
+            area.select();
+            document.execCommand('copy');
+            area.remove();
           }
-        } else {
-          responseText = await response.text().catch(() => '');
-        }
-
-        if (!response.ok) {
-          const message = data?.error || responseText || `HTTP ${response.status}`;
-          throw new Error(message);
-        }
-        if (!data || typeof data !== 'object') {
-          throw new Error(`Сервер вернул неожиданный ответ. HTTP: ${response.status}`);
-        }
-        if (!data.ok) {
-          throw new Error(data.error || 'Запрос завершился ошибкой.');
-        }
-        return data;
-      }
-
-      function label(text) {
-        const item = document.createElement('strong');
-        item.textContent = text;
-        return item;
-      }
-
-      function copyButton(value) {
-        const button = document.createElement('button');
-        button.className = 'secondary';
-        button.textContent = 'Скопировать';
-        button.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(value);
-            tg?.HapticFeedback?.notificationOccurred?.('success');
-          } catch {
-            tg?.showAlert?.('Не удалось скопировать ссылку.');
-          }
-        });
-        return button;
-      }
-
-      function renderLinks(container, invite) {
-        container.innerHTML = '';
-        container.classList.remove('hidden');
-        const botCode = document.createElement('code');
-        botCode.textContent = invite.bot_start_link;
-        container.appendChild(label('Bot link'));
-        container.appendChild(botCode);
-        container.appendChild(copyButton(invite.bot_start_link));
-        if (invite.mini_app_link) {
-          const miniCode = document.createElement('code');
-          miniCode.textContent = invite.mini_app_link;
-          container.appendChild(label('Mini App link'));
-          container.appendChild(miniCode);
-          container.appendChild(copyButton(invite.mini_app_link));
+          showNotice('Ссылка скопирована');
+          tg?.HapticFeedback?.selectionChanged?.();
+        } catch (_error) {
+          window.prompt('Скопируй ссылку вручную:', text);
         }
       }
 
-      function humanizeReminderStatus(status, action) {
-        if (status === 'acknowledged' && action === 'done') return 'выполнено';
-        if (status === 'acknowledged' && String(action || '').startsWith('snooze_')) return 'отложено';
-        return {
-          scheduled: 'запланировано',
-          processing: 'в обработке',
-          delivered: 'доставлено',
-          acknowledged: 'подтверждено',
-          failed: 'ошибка',
-          cancelled: 'отменено',
-        }[status] || status;
+      function setButtonBusy(button, busy, busyLabel) {
+        if (!button) return;
+        if (!button.dataset.originalText) {
+          button.dataset.originalText = button.textContent;
+        }
+        button.disabled = busy;
+        button.textContent = busy ? busyLabel : button.dataset.originalText;
       }
 
-      function humanizeCareStatus(status) {
-        return {
-          pending: 'в очереди',
-          processing: 'отправляется',
-          sent: 'отправлено',
-          responded: 'получен ответ',
-          failed: 'ошибка',
-        }[status] || status;
+      async function withButtonBusy(button, busyLabel, task) {
+        try {
+          setButtonBusy(button, true, busyLabel);
+          return await task();
+        } finally {
+          setButtonBusy(button, false, busyLabel);
+        }
       }
 
-      function renderReminders(reminders) {
-        el.reminderList.innerHTML = '';
-        el.remindersCounter.textContent = `${Array.isArray(reminders) ? reminders.length : 0} шт.`;
-        if (!Array.isArray(reminders) || reminders.length === 0) {
-          el.emptyReminders.classList.remove('hidden');
+      function renderInviteLinks(container, invite) {
+        if (!invite || !container) {
           return;
         }
-        el.emptyReminders.classList.add('hidden');
+        container.innerHTML = '';
+        container.classList.remove('hidden');
 
-        for (const item of reminders) {
-          const card = document.createElement('div');
-          card.className = 'reminder-item';
+        const title = document.createElement('div');
+        title.className = 'strong';
+        title.textContent = 'Отправь одну из ссылок партнёру';
+        container.appendChild(title);
 
-          const top = document.createElement('div');
-          top.className = 'row';
-          const pill = document.createElement('span');
-          pill.className = `pill status-${item.status}`;
-          pill.textContent = humanizeReminderStatus(item.status, item.handled_action);
-          const time = document.createElement('span');
-          time.className = 'meta';
-          time.textContent = new Date(item.scheduled_at_utc).toLocaleString();
-          top.appendChild(pill);
-          top.appendChild(time);
+        const expires = document.createElement('div');
+        expires.className = 'meta';
+        expires.textContent = `Действует до ${formatDateTime(invite.expires_at)}.`;
+        container.appendChild(expires);
 
-          const text = document.createElement('div');
-          text.className = 'text-strong';
-          text.textContent = item.text;
+        const addCopyLine = (labelText, value) => {
+          if (!value) return;
+          const line = document.createElement('div');
+          line.className = 'copy-line';
+          const label = document.createElement('div');
+          label.className = 'meta';
+          label.textContent = labelText;
+          const code = document.createElement('div');
+          code.className = 'copy-value';
+          code.textContent = value;
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'ghost';
+          button.textContent = 'Скопировать';
+          button.addEventListener('click', () => {
+            copyText(value).catch(() => {});
+          });
+          line.append(label, code, button);
+          container.appendChild(line);
+        };
 
-          const meta = document.createElement('div');
-          meta.className = 'meta';
-          meta.textContent = `Отправитель: ${item.creator.display_name} → Получатель: ${item.recipient.display_name}`;
-
-          card.appendChild(top);
-          card.appendChild(text);
-          card.appendChild(meta);
-
-          if (item.last_error) {
-            const error = document.createElement('div');
-            error.className = 'meta error';
-            error.textContent = `Ошибка доставки: ${item.last_error}`;
-            card.appendChild(error);
-          }
-
-          if (item.status === 'scheduled' && item.creator.telegram_user_id === state.currentState?.user?.telegram_user_id) {
-            const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'secondary';
-            cancelBtn.textContent = 'Отменить';
-            cancelBtn.addEventListener('click', () => cancelReminder(item.rule_id));
-            card.appendChild(cancelBtn);
-          }
-
-          el.reminderList.appendChild(card);
-        }
+        addCopyLine('Ссылка для бота', invite.bot_start_link);
+        addCopyLine('Ссылка для приложения', invite.mini_app_link);
       }
 
-      function populateCareCategories(templates) {
-        const currentValue = state.careCategory;
-        const categories = new Map();
-        categories.set('all', 'Все категории');
-        for (const item of templates) {
-          if (!categories.has(item.category)) {
-            categories.set(item.category, item.category_label || item.category);
-          }
+      function updateRoleButtons(roleValue) {
+        [
+          [el.roleWoman, roleValue === 'woman'],
+          [el.roleMan, roleValue === 'man'],
+          [el.roleUnspecified, roleValue === 'unspecified'],
+        ].forEach(([button, selected]) => {
+          button.classList.toggle('is-selected', selected);
+        });
+      }
+
+      function renderProfileCard(user, partner) {
+        if (!user) {
+          setProfileVisible(false);
+          return;
         }
+        setProfileVisible(true);
+        el.roleSummary.textContent = `Ты — ${roleLabel(user)}.`;
+        el.partnerRoleSummary.textContent = partner
+          ? `Партнёр ${partner.display_name} — ${roleLabel(partner)}.`
+          : 'Роль партнёра появится после подтверждения пары.';
+        updateRoleButtons(user.relationship_role || 'unspecified');
+      }
+
+      function renderActiveHeader(user, partner) {
+        if (!user || !partner) return;
+        el.activeText.textContent = `${partner.display_name} — твой подтверждённый партнёр. Можно пользоваться напоминаниями и заботливыми сообщениями.`;
+        el.activeRoleUser.textContent = `Ты: ${roleLabel(user)}`;
+        el.activeRolePartner.textContent = `${partner.display_name}: ${roleLabel(partner)}`;
+      }
+
+      function filteredTemplates() {
+        const templates = state.careTemplates || [];
+        if (state.careCategory === 'all') return templates;
+        return templates.filter((item) => item.category === state.careCategory);
+      }
+
+      function renderCareCategories(templates) {
+        const categories = new Map();
+        templates.forEach((item) => {
+          if (!categories.has(item.category)) {
+            categories.set(item.category, item.category_label);
+          }
+        });
+        const current = state.careCategory || 'all';
         el.careCategory.innerHTML = '';
+
+        const allOption = document.createElement('option');
+        allOption.value = 'all';
+        allOption.textContent = 'Все категории';
+        el.careCategory.appendChild(allOption);
+
         for (const [value, label] of categories.entries()) {
           const option = document.createElement('option');
           option.value = value;
           option.textContent = label;
           el.careCategory.appendChild(option);
         }
-        const nextValue = categories.has(currentValue) ? currentValue : (categories.size > 1 ? [...categories.keys()][1] : 'all');
-        state.careCategory = nextValue;
-        el.careCategory.value = nextValue;
-      }
 
-      function filteredTemplates() {
-        if (state.careCategory === 'all') return state.careTemplates;
-        return state.careTemplates.filter((item) => item.category === state.careCategory);
+        if ([...el.careCategory.options].some((option) => option.value === current)) {
+          el.careCategory.value = current;
+        } else {
+          state.careCategory = 'all';
+          el.careCategory.value = 'all';
+        }
       }
 
       function renderCareTemplates(templates) {
         state.careTemplates = Array.isArray(templates) ? templates : [];
-        populateCareCategories(state.careTemplates);
-        const visible = filteredTemplates();
+        renderCareCategories(state.careTemplates);
+        const items = filteredTemplates();
+        el.careCounter.textContent = `${items.length} вариантов`;
         el.careTemplateList.innerHTML = '';
-        el.careCounter.textContent = `${state.careTemplates.length} шаблонов`;
-        for (const item of visible) {
+
+        if (!items.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty-state';
+          empty.textContent = 'Подходящих сообщений пока нет. Укажи роли или попробуй другую категорию.';
+          el.careTemplateList.appendChild(empty);
+          return;
+        }
+
+        const groups = new Map();
+        items.forEach((item) => {
+          if (!groups.has(item.category)) {
+            groups.set(item.category, { label: item.category_label, items: [] });
+          }
+          groups.get(item.category).items.push(item);
+        });
+
+        for (const group of groups.values()) {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'category-group';
+          const heading = document.createElement('div');
+          heading.className = 'category-title';
+          heading.textContent = group.label;
+          wrapper.appendChild(heading);
+
+          group.items.forEach((item) => {
+            const card = document.createElement('div');
+            card.className = 'template-item';
+
+            const top = document.createElement('div');
+            top.className = 'header-row';
+            const title = document.createElement('div');
+            title.className = 'template-title';
+            title.textContent = `${item.emoji} ${item.title}`;
+            const action = document.createElement('button');
+            action.type = 'button';
+            action.className = 'primary';
+            action.textContent = 'Отправить';
+            action.addEventListener('click', () => {
+              withButtonBusy(action, 'Отправляю…', async () => {
+                await sendCare(item.template_code);
+              }).catch((error) => showError(error.message || 'Не удалось отправить сообщение.'));
+            });
+            top.append(title, action);
+
+            const body = document.createElement('div');
+            body.className = 'template-body';
+            body.textContent = item.body;
+            card.append(top, body);
+            wrapper.appendChild(card);
+          });
+
+          el.careTemplateList.appendChild(wrapper);
+        }
+      }
+
+      function renderReminders(reminders) {
+        state.reminders = Array.isArray(reminders) ? reminders : [];
+        el.reminderList.innerHTML = '';
+        el.remindersCounter.textContent = `${state.reminders.length} в списке`;
+        el.emptyReminders.classList.toggle('hidden', state.reminders.length > 0);
+
+        state.reminders.forEach((item) => {
           const card = document.createElement('div');
-          card.className = 'care-template-item';
+          card.className = 'reminder-item';
 
           const top = document.createElement('div');
-          top.className = 'row';
-          const category = document.createElement('span');
-          category.className = 'pill';
-          category.textContent = `${item.emoji} ${item.category_label}`;
-          const code = document.createElement('span');
-          code.className = 'meta';
-          code.textContent = item.template_code;
-          top.appendChild(category);
-          top.appendChild(code);
+          top.className = 'header-row';
 
           const title = document.createElement('div');
-          title.className = 'template-title';
-          title.textContent = `${item.emoji} ${item.title}`;
+          title.className = 'reminder-title';
+          title.textContent = `⏰ ${item.kind_label}`;
+
+          const status = document.createElement('span');
+          status.className = `pill status-${item.status}`;
+          status.textContent = reminderStatusLabels[item.status] || item.status;
+          top.append(title, status);
 
           const body = document.createElement('div');
-          body.className = 'template-body';
-          body.textContent = item.body;
+          body.className = 'reminder-body';
+          body.textContent = item.text;
 
-          const action = document.createElement('button');
-          action.className = 'primary';
-          action.textContent = 'Отправить партнёру 💌';
-          action.addEventListener('click', () => sendCare(item.template_code));
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          meta.textContent = `Для ${item.recipient.display_name} · ${formatDateTime(item.scheduled_at_utc)}`;
 
-          card.appendChild(top);
-          card.appendChild(title);
-          card.appendChild(body);
-          card.appendChild(action);
-          el.careTemplateList.appendChild(card);
-        }
+          card.append(top, body, meta);
+
+          if (item.last_error) {
+            const error = document.createElement('div');
+            error.className = 'meta error-text';
+            error.textContent = `Ошибка: ${item.last_error}`;
+            card.appendChild(error);
+          }
+
+          const canCancel = item.creator?.telegram_user_id === currentUser()?.telegram_user_id && item.status === 'scheduled';
+          if (canCancel) {
+            const actions = document.createElement('div');
+            actions.className = 'toolbar';
+            const cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'danger';
+            cancel.textContent = 'Отменить';
+            cancel.addEventListener('click', () => {
+              withButtonBusy(cancel, 'Отменяю…', async () => {
+                await cancelReminder(item.rule_id);
+              }).catch((error) => showError(error.message || 'Не удалось отменить напоминание.'));
+            });
+            actions.appendChild(cancel);
+            card.appendChild(actions);
+          }
+
+          el.reminderList.appendChild(card);
+        });
+      }
+
+      async function sendQuickReply(dispatchId, suggestion) {
+        const result = await api('/api/v1/care/respond-custom', {
+          method: 'POST',
+          body: JSON.stringify({
+            dispatch_id: dispatchId,
+            title: suggestion.title,
+            message: suggestion.message,
+            emoji: suggestion.emoji,
+          }),
+        });
+        renderCareHistory(result.history || []);
+        showNotice('Ответ отправлен');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
+      }
+
+      async function sendCustomReply(dispatchId, form) {
+        const titleInput = form.querySelector('[data-role="reply-title"]');
+        const bodyInput = form.querySelector('[data-role="reply-body"]');
+        const emojiInput = form.querySelector('[data-role="reply-emoji"]');
+        const submitButton = form.querySelector('[data-role="reply-submit"]');
+        const result = await withButtonBusy(submitButton, 'Отправляю…', () =>
+          api('/api/v1/care/respond-custom', {
+            method: 'POST',
+            body: JSON.stringify({
+              dispatch_id: dispatchId,
+              title: titleInput.value.trim() || 'Мой ответ',
+              message: bodyInput.value.trim(),
+              emoji: emojiInput.value.trim() || '💗',
+            }),
+          })
+        );
+        bodyInput.value = '';
+        titleInput.value = 'Мой ответ';
+        emojiInput.value = '💗';
+        renderCareHistory(result.history || []);
+        showNotice('Ответ отправлен');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
+      }
+
+      function buildReplyForm(item) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'reply-box';
+
+        const title = document.createElement('div');
+        title.className = 'strong';
+        title.textContent = 'Ответить партнёру';
+        wrapper.appendChild(title);
+
+        const quickRow = document.createElement('div');
+        quickRow.className = 'quick-replies';
+        replySuggestions.forEach((suggestion) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'secondary';
+          button.textContent = `${suggestion.emoji} ${suggestion.title}`;
+          button.addEventListener('click', () => {
+            withButtonBusy(button, 'Отправляю…', async () => {
+              await sendQuickReply(item.id, suggestion);
+            }).catch((error) => showError(error.message || 'Не удалось отправить ответ.'));
+          });
+          quickRow.appendChild(button);
+        });
+        wrapper.appendChild(quickRow);
+
+        const customForm = document.createElement('div');
+        customForm.className = 'grid';
+        customForm.innerHTML = `
+          <div class="split">
+            <label style="flex: 0 0 92px;">
+              Эмодзи
+              <input data-role="reply-emoji" class="emoji-input" maxlength="4" value="💗" />
+            </label>
+            <label style="flex: 1 1 220px;">
+              Заголовок
+              <input data-role="reply-title" maxlength="80" value="Мой ответ" />
+            </label>
+          </div>
+          <label>
+            Текст ответа
+            <textarea data-role="reply-body" placeholder="Напиши свой ответ"></textarea>
+          </label>
+          <div class="actions">
+            <button data-role="reply-submit" class="primary" type="button">Отправить свой ответ</button>
+          </div>
+        `;
+        customForm.querySelector('[data-role="reply-submit"]').addEventListener('click', () => {
+          sendCustomReply(item.id, customForm).catch((error) => showError(error.message || 'Не удалось отправить ответ.'));
+        });
+        wrapper.appendChild(customForm);
+        return wrapper;
       }
 
       function renderCareHistory(history) {
         state.careHistory = Array.isArray(history) ? history : [];
         el.careHistoryList.innerHTML = '';
-        if (!state.careHistory.length) {
-          el.emptyCareHistory.classList.remove('hidden');
-          return;
-        }
-        el.emptyCareHistory.classList.add('hidden');
+        el.emptyCareHistory.classList.toggle('hidden', state.careHistory.length > 0);
 
-        for (const item of state.careHistory) {
+        state.careHistory.forEach((item) => {
           const card = document.createElement('div');
-          card.className = `care-history-item ${item.direction}`;
+          card.className = `history-item ${item.direction}`;
 
           const top = document.createElement('div');
-          top.className = 'row';
-          const pill = document.createElement('span');
-          pill.className = `pill status-${item.status}`;
-          pill.textContent = humanizeCareStatus(item.status);
-          const time = document.createElement('span');
-          time.className = 'meta';
-          time.textContent = new Date(item.created_at).toLocaleString();
-          top.appendChild(pill);
-          top.appendChild(time);
-
+          top.className = 'header-row';
           const title = document.createElement('div');
-          title.className = 'text-strong';
+          title.className = 'history-title';
           title.textContent = `${item.emoji} ${item.title}`;
+          const status = document.createElement('span');
+          status.className = `pill status-${item.status}`;
+          status.textContent = careStatusLabels[item.status] || item.status;
+          top.append(title, status);
 
           const direction = document.createElement('div');
           direction.className = 'meta';
           direction.textContent = item.direction === 'outbound'
             ? `Ты → ${item.recipient.display_name}`
-            : `${item.sender.display_name} → Ты`;
+            : `${item.sender.display_name} → тебе`;
 
           const body = document.createElement('div');
           body.className = 'history-body';
           body.textContent = item.body;
 
-          card.appendChild(top);
-          card.appendChild(title);
-          card.appendChild(direction);
-          card.appendChild(body);
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          meta.textContent = formatDateTime(item.created_at);
 
-          if (item.response_title) {
+          card.append(top, direction, body, meta);
+
+          if (item.response_title || item.response_body) {
             const response = document.createElement('div');
-            response.className = 'meta';
-            response.textContent = `Ответ: ${item.response_emoji || ''} ${item.response_title} — ${item.response_body || ''}`;
+            response.className = 'reply-box';
+            const responseTitle = document.createElement('div');
+            responseTitle.className = 'strong';
+            responseTitle.textContent = `${item.response_emoji || '💖'} ${item.response_title || 'Ответ'}`;
+            const responseBody = document.createElement('div');
+            responseBody.className = 'reply-body';
+            responseBody.textContent = item.response_body || '';
+            response.append(responseTitle, responseBody);
             card.appendChild(response);
+          } else if (item.direction === 'inbound' && item.status === 'sent') {
+            card.appendChild(buildReplyForm(item));
           }
+
           if (item.last_error) {
             const error = document.createElement('div');
-            error.className = 'meta error';
+            error.className = 'meta error-text';
             error.textContent = `Ошибка: ${item.last_error}`;
             card.appendChild(error);
           }
 
           el.careHistoryList.appendChild(card);
-        }
+        });
       }
 
-      function applyPayload(payload) {
-        const serverState = payload.state;
-        state.currentState = serverState;
-        state.inviteToken = payload.invite_preview ? getStartParam().replace(/^invite_/, '') : null;
-        state.inviteId = payload.invite_preview?.invite_id || serverState.incoming_invite?.id || null;
+      function applyPayload(payload = {}) {
+        if (payload.state) {
+          state.currentState = payload.state;
+        }
+        if (Array.isArray(payload.reminders)) {
+          state.reminders = payload.reminders;
+        } else if (state.currentState?.mode !== 'active') {
+          state.reminders = [];
+        }
+        if (Array.isArray(payload.care_templates)) {
+          state.careTemplates = payload.care_templates;
+        } else if (state.currentState?.mode !== 'active') {
+          state.careTemplates = [];
+        }
+        if (Array.isArray(payload.care_history)) {
+          state.careHistory = payload.care_history;
+        } else if (state.currentState?.mode !== 'active') {
+          state.careHistory = [];
+        }
 
-        if (payload.invite_preview && state.inviteToken) {
+        const serverState = state.currentState;
+        const user = serverState?.user || payload.user || null;
+        const partner = serverState?.partner || null;
+        renderProfileCard(user, partner);
+
+        state.inviteId = serverState?.incoming_invite?.id || payload.invite_preview?.invite_id || null;
+        state.inviteToken = payload.invite_preview ? getStartParam().replace(/^invite_/, '') : null;
+
+        if (!serverState) {
+          showPrimary('loading');
           setActiveBlocksVisible(false);
-          el.incomingText.textContent = `${payload.invite_preview.inviter.display_name} приглашает тебя в подтверждённую пару 1↔1.`;
-          showOnly('incoming');
           return;
         }
 
-        if (serverState.mode === 'active' && serverState.partner) {
-          el.activeText.textContent = `Текущий партнёр: ${serverState.partner.display_name}. Связь активна и эксклюзивна.`;
+        if (payload.invite_preview && state.inviteToken) {
+          setActiveBlocksVisible(false);
+          el.incomingText.textContent = `${payload.invite_preview.inviter.display_name} приглашает тебя в пару.`;
+          showPrimary('incoming_invite');
+          return;
+        }
+
+        if (serverState.mode === 'active' && partner) {
+          renderActiveHeader(user, partner);
           setActiveBlocksVisible(true);
-          renderReminders(payload.reminders || []);
-          renderCareTemplates(payload.care_templates || []);
-          renderCareHistory(payload.care_history || []);
-          showOnly('active');
+          renderReminders(state.reminders);
+          renderCareTemplates(state.careTemplates);
+          renderCareHistory(state.careHistory);
+          showPrimary('active');
           return;
         }
 
         setActiveBlocksVisible(false);
 
         if (serverState.mode === 'incoming_invite') {
-          const name = serverState.incoming_invite?.inviter?.display_name || 'Кто-то';
-          el.incomingText.textContent = `${name} приглашает тебя в пару.`;
-          showOnly('incoming');
+          const inviterName = serverState.incoming_invite?.inviter?.display_name || 'Партнёр';
+          el.incomingText.textContent = `${inviterName} приглашает тебя в пару. После подтверждения приложение откроет общие функции.`;
+          showPrimary('incoming_invite');
           return;
         }
 
         if (serverState.mode === 'outgoing_invite' && serverState.outgoing_invite) {
-          el.outgoingText.textContent = `Есть активное исходящее приглашение до ${new Date(serverState.outgoing_invite.expires_at).toLocaleString()}. При необходимости можно выпустить новое.`;
-          showOnly('outgoing');
+          el.outgoingText.textContent = `Приглашение уже создано и действует до ${formatDateTime(serverState.outgoing_invite.expires_at)}.`;
+          showPrimary('outgoing_invite');
           return;
         }
 
-        showOnly('no-pair');
+        showPrimary('no_pair');
       }
 
       async function refreshState() {
@@ -734,141 +1294,168 @@ API: ${API_BASE || 'not configured'}`;
         renderCareHistory(result.history || []);
       }
 
-      async function createInvite(targetContainer) {
-        try {
-          const result = await api('/api/v1/pairs/invite', { method: 'POST', body: '{}' });
-          renderLinks(targetContainer, result.invite);
-          await refreshState();
-          tg?.HapticFeedback?.notificationOccurred?.('success');
-        } catch (error) {
-          showError(error.message || 'Не удалось создать приглашение.');
-        }
+      async function setRelationshipRole(role) {
+        const result = await api('/api/v1/profile', {
+          method: 'POST',
+          body: JSON.stringify({ relationship_role: role }),
+        });
+        applyPayload(result);
+        showNotice('Роль сохранена');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
+      }
+
+      async function createInvite() {
+        const result = await api('/api/v1/pairs/invite', { method: 'POST', body: '{}' });
+        renderInviteLinks(el.inviteLinks, result.invite);
+        renderInviteLinks(el.inviteLinksRepeat, result.invite);
+        applyPayload({ state: result.state });
+        showNotice('Приглашение создано');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
       async function acceptInvite() {
         if (!state.inviteToken && !state.inviteId) {
-          showError('Invite context не найден.');
-          return;
+          throw new Error('Не удалось найти приглашение для подтверждения.');
         }
-        try {
-          const payload = state.inviteToken ? { token: state.inviteToken } : { invite_id: state.inviteId };
-          await api('/api/v1/pairs/accept', { method: 'POST', body: JSON.stringify(payload) });
-          tg?.HapticFeedback?.notificationOccurred?.('success');
-          await refreshState();
-        } catch (error) {
-          showError(error.message || 'Не удалось подтвердить пару.');
-        }
+        const payload = state.inviteToken ? { token: state.inviteToken } : { invite_id: state.inviteId };
+        const result = await api('/api/v1/pairs/accept', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        applyPayload(result);
+        showNotice('Пара подтверждена');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
       async function rejectInvite() {
         if (!state.inviteToken && !state.inviteId) {
-          showError('Invite context не найден.');
-          return;
+          throw new Error('Не удалось найти приглашение для отклонения.');
         }
-        try {
-          const payload = state.inviteToken ? { token: state.inviteToken } : { invite_id: state.inviteId };
-          await api('/api/v1/pairs/reject', { method: 'POST', body: JSON.stringify(payload) });
-          tg?.HapticFeedback?.notificationOccurred?.('success');
-          await refreshState();
-        } catch (error) {
-          showError(error.message || 'Не удалось отклонить приглашение.');
-        }
+        const payload = state.inviteToken ? { token: state.inviteToken } : { invite_id: state.inviteId };
+        const result = await api('/api/v1/pairs/reject', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        applyPayload({ state: result.state });
+        showNotice('Приглашение отклонено');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
       async function unpair() {
         const confirmed = await new Promise((resolve) => {
-          if (!tg?.showConfirm) return resolve(window.confirm('Разорвать активную пару?'));
-          tg.showConfirm('Разорвать активную пару?', resolve);
+          if (!tg?.showConfirm) {
+            resolve(window.confirm('Разорвать текущую пару?'));
+            return;
+          }
+          tg.showConfirm('Разорвать текущую пару?', resolve);
         });
         if (!confirmed) return;
-        try {
-          await api('/api/v1/pairs/unpair', { method: 'POST', body: '{}' });
-          tg?.HapticFeedback?.notificationOccurred?.('success');
-          await refreshState();
-        } catch (error) {
-          showError(error.message || 'Не удалось завершить пару.');
-        }
+        const result = await api('/api/v1/pairs/unpair', { method: 'POST', body: '{}' });
+        applyPayload(result);
+        showNotice('Пара завершена');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
       async function createReminder() {
-        try {
-          const text = el.reminderText.value.trim();
-          if (!text) {
-            showError('Напиши текст напоминания.', { alert: false });
-            return;
-          }
-          if (!el.reminderDatetime.value) {
-            showError('Выбери дату и время для напоминания.', { alert: false });
-            return;
-          }
-          const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
-          const payload = {
+        const text = el.reminderText.value.trim();
+        if (!text) {
+          throw new Error('Напиши текст напоминания.');
+        }
+        if (!el.reminderDatetime.value) {
+          throw new Error('Выбери дату и время для напоминания.');
+        }
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
+        const result = await api('/api/v1/reminders', {
+          method: 'POST',
+          body: JSON.stringify({
             text,
             scheduled_for_local: el.reminderDatetime.value,
             timezone,
-          };
-          const result = await api('/api/v1/reminders', {
-            method: 'POST',
-            body: JSON.stringify(payload),
-          });
-          el.reminderText.value = '';
-          tg?.HapticFeedback?.notificationOccurred?.('success');
-          renderReminders(result.reminders || []);
-        } catch (error) {
-          showError(error.message || 'Не удалось создать напоминание.');
-        }
+            kind: el.reminderKind.value,
+          }),
+        });
+        el.reminderText.value = '';
+        renderReminders(result.reminders || []);
+        showNotice('Напоминание сохранено');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
       async function cancelReminder(ruleId) {
         const confirmed = await new Promise((resolve) => {
-          if (!tg?.showConfirm) return resolve(window.confirm('Отменить это напоминание?'));
+          if (!tg?.showConfirm) {
+            resolve(window.confirm('Отменить это напоминание?'));
+            return;
+          }
           tg.showConfirm('Отменить это напоминание?', resolve);
         });
         if (!confirmed) return;
-        try {
-          const result = await api(`/api/v1/reminders/${ruleId}/cancel`, { method: 'POST', body: '{}' });
-          tg?.HapticFeedback?.notificationOccurred?.('success');
-          renderReminders(result.reminders || []);
-        } catch (error) {
-          showError(error.message || 'Не удалось отменить напоминание.');
-        }
+        const result = await api(`/api/v1/reminders/${ruleId}/cancel`, { method: 'POST', body: '{}' });
+        renderReminders(result.reminders || []);
+        showNotice('Напоминание отменено');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
       async function sendCare(templateCode) {
-        try {
-          const result = await api('/api/v1/care/send', {
-            method: 'POST',
-            body: JSON.stringify({ template_code: templateCode }),
-          });
-          tg?.HapticFeedback?.notificationOccurred?.('success');
-          renderCareHistory(result.history || []);
-          window.setTimeout(() => {
-            refreshCareHistory().catch(() => {});
-          }, 1800);
-        } catch (error) {
-          showError(error.message || 'Не удалось отправить care-сообщение.');
-        }
+        const result = await api('/api/v1/care/send', {
+          method: 'POST',
+          body: JSON.stringify({ template_code: templateCode }),
+        });
+        renderCareHistory(result.history || []);
+        showNotice('Сообщение поставлено в очередь на отправку');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
       async function sendRandomCare() {
         const templates = filteredTemplates();
         if (!templates.length) {
-          showError('В выбранной категории пока нет шаблонов.');
-          return;
+          throw new Error('В этой категории пока нет сообщений.');
         }
-        const randomItem = templates[Math.floor(Math.random() * templates.length)];
-        await sendCare(randomItem.template_code);
+        const item = templates[Math.floor(Math.random() * templates.length)];
+        await sendCare(item.template_code);
+      }
+
+      async function sendCustomCare() {
+        const body = el.customCareBody.value.trim();
+        if (!body) {
+          throw new Error('Напиши своё сообщение партнёру.');
+        }
+        const result = await api('/api/v1/care/send-custom', {
+          method: 'POST',
+          body: JSON.stringify({
+            emoji: el.customCareEmoji.value.trim() || '💌',
+            title: el.customCareTitle.value.trim() || 'Моё сообщение',
+            message: body,
+          }),
+        });
+        el.customCareBody.value = '';
+        el.customCareTitle.value = '';
+        el.customCareEmoji.value = '';
+        renderCareHistory(result.history || []);
+        showNotice('Сообщение поставлено в очередь на отправку');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
+      }
+
+      function startAutoRefresh() {
+        if (state.autoRefreshTimer) {
+          window.clearInterval(state.autoRefreshTimer);
+        }
+        state.autoRefreshTimer = window.setInterval(() => {
+          if (!state.sessionToken) return;
+          if (document.visibilityState !== 'visible') return;
+          refreshState().catch(() => {});
+        }, 30000);
       }
 
       async function bootstrap() {
         applyTheme();
         tg?.ready?.();
         tg?.expand?.();
-        showOnly('loading');
-        setActiveBlocksVisible(false);
+        clearNotice();
         el.errorText.textContent = '';
-
-        el.reminderMeta.textContent = `Твой timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown'}`;
+        showPrimary('loading');
+        setProfileVisible(false);
+        setActiveBlocksVisible(false);
+        el.reminderMeta.textContent = `Твой часовой пояс: ${Intl.DateTimeFormat().resolvedOptions().timeZone || 'не определён'}`;
 
         try {
           const auth = await api('/api/v1/auth', {
@@ -880,46 +1467,95 @@ API: ${API_BASE || 'not configured'}`;
           });
           state.sessionToken = auth.session_token;
           applyPayload(auth);
+          startAutoRefresh();
         } catch (error) {
-          showError(describeBootstrapFailure(error), { alert: false });
+          if (!tg?.initData) {
+            showError(`${error.message || 'Не удалось пройти авторизацию.'}\n\nПодсказка: открой приложение прямо из бота в Telegram.`, { alert: false });
+          } else {
+            showError(error.message || 'Не удалось пройти авторизацию.', { alert: false });
+          }
         }
       }
 
       window.addEventListener('error', (event) => {
-        reportFatalError(event.error || new Error(event.message || 'Необработанная ошибка JavaScript.'));
-      });
-      window.addEventListener('unhandledrejection', (event) => {
-        reportFatalError(event.reason instanceof Error ? event.reason : new Error(String(event.reason || 'Необработанное отклонение Promise.')));
+        if (!event?.error) return;
+        showError(event.error.message || 'Произошла ошибка интерфейса.', { alert: false });
       });
 
-      document.getElementById('create-invite').addEventListener('click', () => createInvite(el.inviteLinks));
-      document.getElementById('refresh-invite').addEventListener('click', () => createInvite(el.inviteLinksRepeat));
-      document.getElementById('accept-invite').addEventListener('click', acceptInvite);
-      document.getElementById('reject-invite').addEventListener('click', rejectInvite);
-      document.getElementById('unpair').addEventListener('click', unpair);
-      document.getElementById('create-reminder').addEventListener('click', createReminder);
-      document.getElementById('refresh-state').addEventListener('click', () => {
-        refreshState().catch((error) => showError(error.message || 'Не удалось обновить состояние.'));
+      window.addEventListener('unhandledrejection', (event) => {
+        const reason = event?.reason;
+        showError(reason?.message || String(reason || 'Необработанная ошибка.'), { alert: false });
       });
-      document.getElementById('care-history-refresh').addEventListener('click', () => {
-        refreshCareHistory().catch((error) => showError(error.message || 'Не удалось обновить историю.'));
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && state.sessionToken) {
+          refreshState().catch(() => {});
+        }
       });
-      document.getElementById('care-random').addEventListener('click', () => {
-        sendRandomCare().catch((error) => showError(error.message || 'Не удалось отправить care-сообщение.'));
-      });
+
       el.retryBootstrap.addEventListener('click', () => {
-        bootstrap().catch((error) => showError(error.message || 'Не удалось повторно открыть Mini App.', { alert: false }));
+        bootstrap().catch((error) => showError(error.message || 'Не удалось заново открыть приложение.', { alert: false }));
       });
-      tg?.onEvent?.('themeChanged', applyTheme);
+
+      el.createInvite.addEventListener('click', () => {
+        withButtonBusy(el.createInvite, 'Создаю…', createInvite).catch((error) => showError(error.message || 'Не удалось создать приглашение.'));
+      });
+
+      el.refreshInvite.addEventListener('click', () => {
+        withButtonBusy(el.refreshInvite, 'Создаю…', createInvite).catch((error) => showError(error.message || 'Не удалось создать приглашение.'));
+      });
+
+      el.acceptInvite.addEventListener('click', () => {
+        withButtonBusy(el.acceptInvite, 'Подтверждаю…', acceptInvite).catch((error) => showError(error.message || 'Не удалось подтвердить пару.'));
+      });
+
+      el.rejectInvite.addEventListener('click', () => {
+        withButtonBusy(el.rejectInvite, 'Отклоняю…', rejectInvite).catch((error) => showError(error.message || 'Не удалось отклонить приглашение.'));
+      });
+
+      el.refreshState.addEventListener('click', () => {
+        withButtonBusy(el.refreshState, 'Обновляю…', refreshState).catch((error) => showError(error.message || 'Не удалось обновить состояние.'));
+      });
+
+      el.unpair.addEventListener('click', () => {
+        withButtonBusy(el.unpair, 'Разрываю…', unpair).catch((error) => showError(error.message || 'Не удалось завершить пару.'));
+      });
+
+      el.createReminder.addEventListener('click', () => {
+        withButtonBusy(el.createReminder, 'Сохраняю…', createReminder).catch((error) => showError(error.message || 'Не удалось создать напоминание.'));
+      });
+
+      el.careRandom.addEventListener('click', () => {
+        withButtonBusy(el.careRandom, 'Отправляю…', sendRandomCare).catch((error) => showError(error.message || 'Не удалось отправить сообщение.'));
+      });
+
+      el.sendCustomCare.addEventListener('click', () => {
+        withButtonBusy(el.sendCustomCare, 'Отправляю…', sendCustomCare).catch((error) => showError(error.message || 'Не удалось отправить своё сообщение.'));
+      });
+
+      el.careHistoryRefresh.addEventListener('click', () => {
+        withButtonBusy(el.careHistoryRefresh, 'Обновляю…', refreshCareHistory).catch((error) => showError(error.message || 'Не удалось обновить историю.'));
+      });
+
       el.careCategory.addEventListener('change', () => {
         state.careCategory = el.careCategory.value;
         tg?.HapticFeedback?.selectionChanged?.();
         renderCareTemplates(state.careTemplates || []);
       });
 
-      bootstrap().catch((error) => {
-        reportFatalError(error);
+      el.roleWoman.addEventListener('click', () => {
+        withButtonBusy(el.roleWoman, 'Сохраняю…', () => setRelationshipRole('woman')).catch((error) => showError(error.message || 'Не удалось сохранить роль.'));
       });
+      el.roleMan.addEventListener('click', () => {
+        withButtonBusy(el.roleMan, 'Сохраняю…', () => setRelationshipRole('man')).catch((error) => showError(error.message || 'Не удалось сохранить роль.'));
+      });
+      el.roleUnspecified.addEventListener('click', () => {
+        withButtonBusy(el.roleUnspecified, 'Сохраняю…', () => setRelationshipRole('unspecified')).catch((error) => showError(error.message || 'Не удалось сохранить роль.'));
+      });
+
+      tg?.onEvent?.('themeChanged', applyTheme);
+
+      bootstrap();
     </script>
   </body>
 </html>

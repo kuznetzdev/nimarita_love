@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_name TEXT,
     language_code TEXT,
     timezone TEXT NOT NULL,
+    relationship_role TEXT NOT NULL DEFAULT 'unspecified',
     started_bot INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -105,6 +106,8 @@ CREATE TABLE IF NOT EXISTS care_templates (
     title TEXT NOT NULL,
     body TEXT NOT NULL,
     emoji TEXT NOT NULL,
+    sender_role TEXT NOT NULL DEFAULT 'unspecified',
+    recipient_role TEXT NOT NULL DEFAULT 'unspecified',
     is_active INTEGER NOT NULL DEFAULT 1,
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
@@ -247,6 +250,15 @@ _CARE_DISPATCHES_LEGACY_COLUMNS: dict[str, str] = {
     'delivery_attempts_count': 'INTEGER NOT NULL DEFAULT 0',
 }
 
+_USERS_COMPAT_COLUMNS: dict[str, str] = {
+    'relationship_role': "TEXT NOT NULL DEFAULT 'unspecified'",
+}
+
+_CARE_TEMPLATE_COMPAT_COLUMNS: dict[str, str] = {
+    'sender_role': "TEXT NOT NULL DEFAULT 'unspecified'",
+    'recipient_role': "TEXT NOT NULL DEFAULT 'unspecified'",
+}
+
 _AUDIT_LOGS_SQL = """
 CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -303,6 +315,7 @@ class SQLiteDatabase:
         path: Path,
         *,
         synchronous: str = 'FULL',
+        journal_mode: str = 'WAL',
         busy_timeout_ms: int = 15000,
         wal_autocheckpoint_pages: int = 1000,
         journal_size_limit_bytes: int = 67108864,
@@ -311,6 +324,7 @@ class SQLiteDatabase:
         self._connection: sqlite3.Connection | None = None
         self._lock = asyncio.Lock()
         self._synchronous = synchronous.upper()
+        self._journal_mode = journal_mode.upper()
         self._busy_timeout_ms = max(1000, busy_timeout_ms)
         self._wal_autocheckpoint_pages = max(100, wal_autocheckpoint_pages)
         self._journal_size_limit_bytes = max(1024 * 1024, journal_size_limit_bytes)
@@ -340,6 +354,10 @@ class SQLiteDatabase:
     @property
     def path(self) -> Path:
         return self._path
+
+    @property
+    def journal_mode(self) -> str:
+        return self._journal_mode
 
     @property
     def connection(self) -> sqlite3.Connection:
@@ -407,6 +425,9 @@ class SQLiteDatabase:
         return [f"table={row[0]} rowid={row[1]} parent={row[2]} fk={row[3]}" for row in rows]
 
     async def checkpoint(self, mode: str = 'PASSIVE') -> DatabaseCheckpointResult:
+        if self._journal_mode != 'WAL':
+            checkpoint_mode = mode.upper()
+            return DatabaseCheckpointResult(mode=checkpoint_mode, busy=0, log_frames=0, checkpointed_frames=0)
         checkpoint_mode = mode.upper()
         if checkpoint_mode not in {'PASSIVE', 'FULL', 'RESTART', 'TRUNCATE'}:
             raise ValueError('Unsupported checkpoint mode.')
@@ -444,10 +465,11 @@ class SQLiteDatabase:
     def _apply_connection_pragmas(self) -> None:
         connection = self.connection
         connection.execute('PRAGMA foreign_keys = ON')
-        connection.execute('PRAGMA journal_mode = WAL')
+        connection.execute(f'PRAGMA journal_mode = {self._journal_mode}')
         connection.execute(f'PRAGMA synchronous = {self._synchronous}')
         connection.execute(f'PRAGMA busy_timeout = {self._busy_timeout_ms}')
-        connection.execute(f'PRAGMA wal_autocheckpoint = {self._wal_autocheckpoint_pages}')
+        if self._journal_mode == 'WAL':
+            connection.execute(f'PRAGMA wal_autocheckpoint = {self._wal_autocheckpoint_pages}')
         connection.execute(f'PRAGMA journal_size_limit = {self._journal_size_limit_bytes}')
         connection.execute('PRAGMA temp_store = MEMORY')
         try:
@@ -467,6 +489,16 @@ class SQLiteDatabase:
     def _apply_compat_migrations(self) -> None:
         connection = self.connection
         existing_tables = {row['name'] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if 'users' in existing_tables:
+            columns = {row['name'] for row in connection.execute('PRAGMA table_info(users)')}
+            for column_name, definition in _USERS_COMPAT_COLUMNS.items():
+                if column_name not in columns:
+                    connection.execute(f'ALTER TABLE users ADD COLUMN {column_name} {definition}')
+        if 'care_templates' in existing_tables:
+            columns = {row['name'] for row in connection.execute('PRAGMA table_info(care_templates)')}
+            for column_name, definition in _CARE_TEMPLATE_COMPAT_COLUMNS.items():
+                if column_name not in columns:
+                    connection.execute(f'ALTER TABLE care_templates ADD COLUMN {column_name} {definition}')
         if 'care_dispatches' in existing_tables:
             columns = {row['name'] for row in connection.execute('PRAGMA table_info(care_dispatches)')}
             for column_name, definition in _CARE_DISPATCHES_LEGACY_COLUMNS.items():

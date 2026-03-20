@@ -12,12 +12,13 @@ class ReminderRepository:
     def __init__(self, db: SQLiteDatabase) -> None:
         self._db = db
 
-    async def create_one_time_reminder(
+    async def create_reminder(
         self,
         *,
         pair_id: int,
         creator_user_id: int,
         recipient_user_id: int,
+        kind: ReminderRuleKind,
         text: str,
         creator_timezone: str,
         scheduled_at_utc: datetime,
@@ -44,7 +45,7 @@ class ReminderRepository:
                     pair_id,
                     creator_user_id,
                     recipient_user_id,
-                    ReminderRuleKind.ONE_TIME.value,
+                    kind.value,
                     text,
                     creator_timezone,
                     scheduled_at_utc.isoformat(),
@@ -97,6 +98,100 @@ class ReminderRepository:
             )
             assert rule_row is not None and occurrence_row is not None
             return _row_to_rule(rule_row), _row_to_occurrence(occurrence_row)
+
+    async def _create_occurrence_tx(
+        self,
+        tx: SQLiteTransaction,
+        *,
+        rule: ReminderRule,
+        scheduled_at_utc: datetime,
+        now: datetime,
+    ) -> ReminderOccurrence:
+        cursor = await tx.execute(
+            """
+            INSERT INTO reminder_occurrences (
+                rule_id,
+                pair_id,
+                creator_user_id,
+                recipient_user_id,
+                text,
+                scheduled_at_utc,
+                next_attempt_at_utc,
+                status,
+                handled_action,
+                telegram_message_id,
+                delivery_attempts_count,
+                last_error,
+                sent_at,
+                delivered_at,
+                acknowledged_at,
+                cancelled_at,
+                created_at,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, ?, ?)
+            """,
+            (
+                rule.id,
+                rule.pair_id,
+                rule.creator_user_id,
+                rule.recipient_user_id,
+                rule.text,
+                scheduled_at_utc.isoformat(),
+                scheduled_at_utc.isoformat(),
+                ReminderOccurrenceStatus.SCHEDULED.value,
+                now.isoformat(),
+                now.isoformat(),
+            ),
+        )
+        occurrence_id = int(cursor.lastrowid)
+        row = await tx.fetchone('SELECT * FROM reminder_occurrences WHERE id = ?', (occurrence_id,))
+        assert row is not None
+        return _row_to_occurrence(row)
+
+    async def create_one_time_reminder(
+        self,
+        *,
+        pair_id: int,
+        creator_user_id: int,
+        recipient_user_id: int,
+        text: str,
+        creator_timezone: str,
+        scheduled_at_utc: datetime,
+        now: datetime,
+    ) -> tuple[ReminderRule, ReminderOccurrence]:
+        return await self.create_reminder(
+            pair_id=pair_id,
+            creator_user_id=creator_user_id,
+            recipient_user_id=recipient_user_id,
+            kind=ReminderRuleKind.ONE_TIME,
+            text=text,
+            creator_timezone=creator_timezone,
+            scheduled_at_utc=scheduled_at_utc,
+            now=now,
+        )
+
+    async def create_occurrence(
+        self,
+        *,
+        rule: ReminderRule,
+        scheduled_at_utc: datetime,
+        now: datetime,
+    ) -> ReminderOccurrence:
+        async with self._db.transaction() as tx:
+            occurrence = await self._create_occurrence_tx(
+                tx,
+                rule=rule,
+                scheduled_at_utc=scheduled_at_utc,
+                now=now,
+            )
+            return occurrence
+
+    async def occurrence_exists(self, *, rule_id: int, scheduled_at_utc: datetime) -> bool:
+        row = await self._db.fetchone(
+            'SELECT id FROM reminder_occurrences WHERE rule_id = ? AND scheduled_at_utc = ? LIMIT 1',
+            (rule_id, scheduled_at_utc.isoformat()),
+        )
+        return row is not None
 
     async def list_for_pair(self, pair_id: int, *, limit: int = 30) -> list[tuple[ReminderRule, ReminderOccurrence]]:
         rows = await self._db.fetchall(

@@ -117,6 +117,7 @@ async def build_runtime(settings: Settings) -> Runtime:
     database = SQLiteDatabase(
         settings.database_path,
         synchronous=settings.sqlite_synchronous,
+        journal_mode=settings.sqlite_journal_mode,
         busy_timeout_ms=settings.sqlite_busy_timeout_ms,
         wal_autocheckpoint_pages=settings.sqlite_wal_autocheckpoint_pages,
         journal_size_limit_bytes=settings.sqlite_journal_size_limit_bytes,
@@ -189,6 +190,7 @@ async def build_runtime(settings: Settings) -> Runtime:
             BotCommand(command='start', description='Запустить бота и зарегистрироваться'),
             BotCommand(command='open', description='Открыть мини-приложение'),
             BotCommand(command='pair', description='Создать приглашение в пару'),
+            BotCommand(command='profile', description='Указать, кто ты в паре'),
             BotCommand(command='status', description='Показать состояние пары'),
             BotCommand(command='remind', description='Быстро поставить одноразовое напоминание'),
             BotCommand(command='care', description='Открыть слой заботы и шаблоны'),

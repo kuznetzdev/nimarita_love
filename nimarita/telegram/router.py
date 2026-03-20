@@ -8,6 +8,7 @@ from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from nimarita.config import Settings
+from nimarita.domain.enums import RelationshipRole
 from nimarita.domain.errors import AccessDeniedError, ConflictError, NotFoundError, ValidationError
 from nimarita.domain.models import DashboardState, TelegramUserSnapshot
 from nimarita.services.care import CareService
@@ -21,6 +22,7 @@ from nimarita.telegram.keyboards import (
     dashboard_keyboard,
     invite_preview_keyboard,
     main_keyboard,
+    profile_keyboard,
     remind_command_keyboard,
 )
 from nimarita.telegram.menu import sync_private_menu_button
@@ -51,6 +53,8 @@ from nimarita.telegram.texts import (
     pair_link_ready_text,
     pair_rejected_text,
     pagination_updated_text,
+    profile_role_saved_text,
+    profile_text,
     private_chat_only_text,
     quick_reply_sent_text,
     remind_usage_text,
@@ -165,6 +169,11 @@ def build_router(
         user = await user_service.get_by_telegram_user_id(snapshot.telegram_user_id)
         assert user is not None
         await _send_transient(message.chat.id, welcome_text(user), kind='welcome', seconds=settings.welcome_message_ttl_seconds)
+        await message.answer(
+            'Нажми кнопку ниже, чтобы сразу открыть приложение. Там доступны пара, напоминания и заботливые сообщения.',
+            reply_markup=main_keyboard(settings.webapp_public_url),
+            disable_web_page_preview=True,
+        )
 
         payload = (command.args or '').strip() if command is not None else ''
         if payload.startswith('invite_'):
@@ -213,6 +222,21 @@ def build_router(
             await message.answer(str(error))
             return
         await _render_dashboard(snapshot.telegram_user_id, message.chat.id)
+
+    @router.message(Command('profile'))
+    async def command_profile(message: Message) -> None:
+        try:
+            snapshot = await _register_user_from_message(message)
+        except (AccessDeniedError, ValidationError) as error:
+            await message.answer(str(error))
+            return
+        user = await user_service.get_by_telegram_user_id(snapshot.telegram_user_id)
+        assert user is not None
+        await message.answer(
+            profile_text(user),
+            reply_markup=profile_keyboard(user.relationship_role),
+            disable_web_page_preview=True,
+        )
 
     @router.message(Command('pair'))
     async def command_pair(message: Message) -> None:
@@ -335,6 +359,49 @@ def build_router(
             await _handle_callback_error(callback, error)
             return
         await callback.answer(dashboard_updated_text())
+
+    @router.callback_query(F.data == 'profile:open')
+    async def callback_profile_open(callback: CallbackQuery) -> None:
+        if callback.message is None:
+            await callback.answer()
+            return
+        try:
+            snapshot = await _register_user_from_callback(callback)
+            user = await user_service.get_by_telegram_user_id(snapshot.telegram_user_id)
+            assert user is not None
+        except (AccessDeniedError, ValidationError) as error:
+            await _handle_callback_error(callback, error)
+            return
+        await ui.safe_edit_callback_message(
+            message=callback.message,
+            text=profile_text(user),
+            reply_markup=profile_keyboard(user.relationship_role),
+        )
+        await callback.answer('Профиль открыт')
+
+    @router.callback_query(F.data.startswith('profile:set:'))
+    async def callback_profile_set(callback: CallbackQuery) -> None:
+        if callback.message is None:
+            await callback.answer()
+            return
+        role_text = (callback.data or '').split(':')[-1]
+        try:
+            role = RelationshipRole(role_text)
+            snapshot = await _register_user_from_callback(callback)
+            user = await user_service.set_relationship_role(snapshot.telegram_user_id, role)
+        except ValueError:
+            await callback.answer('Некорректная роль', show_alert=True)
+            return
+        except (AccessDeniedError, ValidationError) as error:
+            await _handle_callback_error(callback, error)
+            return
+        await ui.safe_edit_callback_message(
+            message=callback.message,
+            text=profile_text(user),
+            reply_markup=profile_keyboard(user.relationship_role),
+        )
+        await _render_dashboard(snapshot.telegram_user_id, callback.message.chat.id)
+        await callback.answer(profile_role_saved_text(user.relationship_role_label))
 
     @router.callback_query(F.data == 'pair:ask_unpair')
     async def callback_ask_unpair(callback: CallbackQuery) -> None:

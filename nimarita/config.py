@@ -63,6 +63,21 @@ def _read_origin_list(name: str) -> tuple[str, ...]:
     return tuple(origins)
 
 
+def _resolve_data_root() -> Path:
+    railway_volume = _read_optional('RAILWAY_VOLUME_MOUNT_PATH')
+    if railway_volume:
+        return Path(railway_volume)
+    return Path('data')
+
+
+def _is_path_inside(root: Path, target: Path) -> bool:
+    try:
+        target.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
 @dataclass(slots=True, frozen=True)
 class Settings:
     bot_token: str
@@ -106,6 +121,7 @@ class Settings:
     allowed_user_ids: frozenset[int] = frozenset()
     extra_cors_origins: tuple[str, ...] = ()
     sqlite_synchronous: str = 'FULL'
+    sqlite_journal_mode: str = 'WAL'
     sqlite_busy_timeout_ms: int = 15000
     sqlite_wal_autocheckpoint_pages: int = 1000
     sqlite_journal_size_limit_bytes: int = 67108864
@@ -160,11 +176,17 @@ def load_settings() -> Settings:
             raise RuntimeError('WEBAPP_PUBLIC_URL must use HTTPS.')
 
     session_secret = _read_optional('APP_SESSION_SECRET') or bot_token
-    database_path = Path(_read_optional('PRODUCT_DB_PATH') or 'data/nimarita.db')
-    backup_directory = Path(_read_optional('PRODUCT_BACKUP_DIR') or 'data/backups')
+    data_root = _resolve_data_root()
+    database_path = Path(_read_optional('PRODUCT_DB_PATH') or data_root / 'nimarita.db')
+    backup_directory = Path(_read_optional('PRODUCT_BACKUP_DIR') or data_root / 'backups')
     sqlite_synchronous = (_read_optional('SQLITE_SYNCHRONOUS') or 'FULL').strip().upper()
     if sqlite_synchronous not in {'OFF', 'NORMAL', 'FULL', 'EXTRA'}:
         raise RuntimeError('SQLITE_SYNCHRONOUS must be one of OFF, NORMAL, FULL, EXTRA.')
+    sqlite_journal_mode = (_read_optional('SQLITE_JOURNAL_MODE') or 'AUTO').strip().upper()
+    if sqlite_journal_mode == 'AUTO':
+        sqlite_journal_mode = 'DELETE' if _is_path_inside(data_root, database_path) and _read_optional('RAILWAY_VOLUME_MOUNT_PATH') else 'WAL'
+    if sqlite_journal_mode not in {'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'WAL', 'OFF'}:
+        raise RuntimeError('SQLITE_JOURNAL_MODE must be AUTO, DELETE, TRUNCATE, PERSIST, MEMORY, WAL or OFF.')
     sqlite_checkpoint_mode = (_read_optional('SQLITE_CHECKPOINT_MODE') or 'PASSIVE').strip().upper()
     if sqlite_checkpoint_mode not in {'PASSIVE', 'FULL', 'RESTART', 'TRUNCATE'}:
         raise RuntimeError('SQLITE_CHECKPOINT_MODE must be PASSIVE, FULL, RESTART or TRUNCATE.')
@@ -211,6 +233,7 @@ def load_settings() -> Settings:
         allowed_user_ids=_read_user_id_set('ALLOWED_USER_IDS'),
         extra_cors_origins=_read_origin_list('WEBAPP_EXTRA_CORS_ORIGINS'),
         sqlite_synchronous=sqlite_synchronous,
+        sqlite_journal_mode=sqlite_journal_mode,
         sqlite_busy_timeout_ms=_read_int('SQLITE_BUSY_TIMEOUT_MS', 15000),
         sqlite_wal_autocheckpoint_pages=_read_int('SQLITE_WAL_AUTOCHECKPOINT_PAGES', 1000),
         sqlite_journal_size_limit_bytes=_read_int('SQLITE_JOURNAL_SIZE_LIMIT_BYTES', 67108864),

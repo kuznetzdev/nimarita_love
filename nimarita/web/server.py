@@ -9,6 +9,7 @@ from typing import Any
 from aiohttp import web
 
 from nimarita.config import Settings
+from nimarita.domain.enums import RelationshipRole, ReminderRuleKind
 from nimarita.domain.errors import AccessDeniedError, ConflictError, NotFoundError, ValidationError
 from nimarita.domain.models import DashboardState
 from nimarita.logging import reset_request_id, set_request_id
@@ -70,7 +71,7 @@ async def access_log_middleware(request: web.Request, handler: web.Handler) -> w
     response = await handler(request)
     elapsed_ms = (time.perf_counter() - started) * 1000
     logger.info(
-        'HTTP %s %s -> %s %.1fms origin=%r request_id=%s',
+        'HTTP %s %s -> %s %.1fms origin=%s request_id=%s',
         request.method,
         request.path,
         response.status,
@@ -207,6 +208,7 @@ class WebServer:
         app.router.add_get('/api/v1/health/live', self._health_live)
         app.router.add_get('/api/v1/health/ready', self._health_ready)
         app.router.add_post('/api/v1/auth', self._auth)
+        app.router.add_post('/api/v1/profile', self._update_profile)
         app.router.add_get('/api/v1/state', self._state)
         app.router.add_post('/api/v1/pairs/invite', self._create_invite)
         app.router.add_post('/api/v1/pairs/accept', self._accept_invite)
@@ -218,6 +220,8 @@ class WebServer:
         app.router.add_get('/api/v1/care/templates', self._list_care_templates)
         app.router.add_get('/api/v1/care/history', self._list_care_history)
         app.router.add_post('/api/v1/care/send', self._send_care)
+        app.router.add_post('/api/v1/care/send-custom', self._send_custom_care)
+        app.router.add_post('/api/v1/care/respond-custom', self._respond_custom_care)
         return app
 
     async def _index(self, request: web.Request) -> web.Response:
@@ -335,6 +339,38 @@ class WebServer:
             ]
         return web.json_response(payload, headers=NO_STORE_HEADERS)
 
+    async def _update_profile(self, request: web.Request) -> web.Response:
+        telegram_user_id = self._require_session(request)
+        body = await self._read_json(request)
+        role_text = (_read_optional_text(body.get('relationship_role')) or RelationshipRole.UNSPECIFIED.value).lower()
+        try:
+            role = RelationshipRole(role_text)
+        except ValueError as error:
+            raise WebAuthError(status=400, message='Некорректная роль. Используй woman, man или unspecified.') from error
+        user = await self._user_service.set_relationship_role(telegram_user_id, role)
+        state = await self._pairing_service.get_dashboard(telegram_user_id)
+        payload: dict[str, Any] = {'ok': True, 'user': self._serialize_user(user), 'state': self._serialize_state(state)}
+        if state.active_pair is not None:
+            payload['reminders'] = [
+                self._serialize_reminder(item)
+                for item in await self._reminder_service.list_pair_reminders(telegram_user_id=telegram_user_id)
+            ]
+            payload['care_templates'] = [
+                self._serialize_care_template(item)
+                for item in await self._care_service.list_templates(telegram_user_id=telegram_user_id)
+            ]
+            payload['care_history'] = [
+                self._serialize_care_dispatch(item, viewer_telegram_user_id=telegram_user_id)
+                for item in await self._care_service.list_history(
+                    telegram_user_id=telegram_user_id,
+                    limit=self._settings.care_history_limit,
+                )
+            ]
+        return web.json_response(
+            payload,
+            headers=NO_STORE_HEADERS,
+        )
+
     async def _create_invite(self, request: web.Request) -> web.Response:
         telegram_user_id = self._require_session(request)
         result = await self._pairing_service.create_invite(telegram_user_id)
@@ -358,7 +394,31 @@ class WebServer:
             raise WebAuthError(status=400, message='Нужен token приглашения или invite_id.')
         await self._notifier.notify_pair_confirmed(inviter, invitee)
         state = await self._pairing_service.get_dashboard(telegram_user_id)
-        return web.json_response({'ok': True, 'state': self._serialize_state(state), 'reminders': [], 'care_history': []}, headers=NO_STORE_HEADERS)
+        reminders = [
+            self._serialize_reminder(item)
+            for item in await self._reminder_service.list_pair_reminders(telegram_user_id=telegram_user_id)
+        ]
+        care_templates = [
+            self._serialize_care_template(item)
+            for item in await self._care_service.list_templates(telegram_user_id=telegram_user_id)
+        ]
+        care_history = [
+            self._serialize_care_dispatch(item, viewer_telegram_user_id=telegram_user_id)
+            for item in await self._care_service.list_history(
+                telegram_user_id=telegram_user_id,
+                limit=self._settings.care_history_limit,
+            )
+        ]
+        return web.json_response(
+            {
+                'ok': True,
+                'state': self._serialize_state(state),
+                'reminders': reminders,
+                'care_templates': care_templates,
+                'care_history': care_history,
+            },
+            headers=NO_STORE_HEADERS,
+        )
 
     async def _reject_invite(self, request: web.Request) -> web.Response:
         telegram_user_id = self._require_session(request)
@@ -396,11 +456,17 @@ class WebServer:
         text = _read_optional_text(body.get('text')) or ''
         scheduled_for_local = _read_optional_text(body.get('scheduled_for_local')) or ''
         timezone = _read_optional_text(body.get('timezone')) or self._settings.default_timezone
-        envelope = await self._reminder_service.create_one_time_reminder(
+        kind_text = (_read_optional_text(body.get('kind')) or ReminderRuleKind.ONE_TIME.value).lower()
+        try:
+            kind = ReminderRuleKind(kind_text)
+        except ValueError as error:
+            raise WebAuthError(status=400, message='Некорректный тип напоминания.') from error
+        envelope = await self._reminder_service.create_reminder(
             telegram_user_id=telegram_user_id,
             text=text,
             scheduled_for_local=scheduled_for_local,
             timezone=timezone,
+            kind=kind,
         )
         reminders = [
             self._serialize_reminder(item)
@@ -476,6 +542,68 @@ class WebServer:
             headers=NO_STORE_HEADERS,
         )
 
+    async def _send_custom_care(self, request: web.Request) -> web.Response:
+        telegram_user_id = self._require_session(request)
+        body = await self._read_json(request)
+        title = _read_optional_text(body.get('title')) or 'Моё сообщение'
+        message = _read_optional_text(body.get('message')) or ''
+        emoji = _read_optional_text(body.get('emoji')) or '💌'
+        envelope = await self._care_service.queue_custom(
+            telegram_user_id=telegram_user_id,
+            title=title,
+            body=message,
+            emoji=emoji,
+        )
+        history = [
+            self._serialize_care_dispatch(item, viewer_telegram_user_id=telegram_user_id)
+            for item in await self._care_service.list_history(
+                telegram_user_id=telegram_user_id,
+                limit=self._settings.care_history_limit,
+            )
+        ]
+        return web.json_response(
+            {
+                'ok': True,
+                'dispatch': self._serialize_care_dispatch(envelope, viewer_telegram_user_id=telegram_user_id),
+                'history': history,
+            },
+            status=202,
+            headers=NO_STORE_HEADERS,
+        )
+
+    async def _respond_custom_care(self, request: web.Request) -> web.Response:
+        telegram_user_id = self._require_session(request)
+        body = await self._read_json(request)
+        dispatch_id = _read_optional_int(body.get('dispatch_id'))
+        if dispatch_id is None:
+            raise WebAuthError(status=400, message='Нужен dispatch_id для ответа.')
+        title = _read_optional_text(body.get('title')) or 'Мой ответ'
+        message = _read_optional_text(body.get('message')) or ''
+        emoji = _read_optional_text(body.get('emoji')) or '💗'
+        result = await self._care_service.register_custom_reply(
+            telegram_user_id=telegram_user_id,
+            dispatch_id=dispatch_id,
+            title=title,
+            body=message,
+            emoji=emoji,
+        )
+        await self._notifier.notify_care_response(result)
+        history = [
+            self._serialize_care_dispatch(item, viewer_telegram_user_id=telegram_user_id)
+            for item in await self._care_service.list_history(
+                telegram_user_id=telegram_user_id,
+                limit=self._settings.care_history_limit,
+            )
+        ]
+        return web.json_response(
+            {
+                'ok': True,
+                'dispatch': self._serialize_care_dispatch(result.envelope, viewer_telegram_user_id=telegram_user_id),
+                'history': history,
+            },
+            headers=NO_STORE_HEADERS,
+        )
+
     async def _read_json(self, request: web.Request) -> dict[str, Any]:
         try:
             body = await request.json()
@@ -499,6 +627,8 @@ class WebServer:
             'last_name': user.last_name,
             'display_name': user.display_name,
             'timezone': user.timezone,
+            'relationship_role': user.relationship_role.value,
+            'relationship_role_label': user.relationship_role_label,
             'private_chat_id': user.private_chat_id,
             'started_bot': user.started_bot,
         }
@@ -545,6 +675,8 @@ class WebServer:
         return {
             'rule_id': envelope.rule.id,
             'occurrence_id': envelope.occurrence.id,
+            'kind': envelope.rule.kind.value,
+            'kind_label': _reminder_kind_label(envelope.rule.kind),
             'text': envelope.occurrence.text,
             'status': envelope.occurrence.status.value,
             'handled_action': envelope.occurrence.handled_action,
@@ -566,6 +698,8 @@ class WebServer:
             'title': template.title,
             'body': template.body,
             'emoji': template.emoji,
+            'sender_role': template.sender_role.value,
+            'recipient_role': template.recipient_role.value,
             'sort_order': template.sort_order,
         }
 
@@ -616,3 +750,15 @@ def _read_optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _reminder_kind_label(kind: ReminderRuleKind) -> str:
+    if kind is ReminderRuleKind.ONE_TIME:
+        return 'Один раз'
+    if kind is ReminderRuleKind.DAILY:
+        return 'Каждый день'
+    if kind is ReminderRuleKind.WEEKDAYS:
+        return 'По будням'
+    if kind is ReminderRuleKind.WEEKLY:
+        return 'Раз в неделю'
+    return kind.value

@@ -15,8 +15,17 @@ class InviteStatus(str, Enum):
     EXPIRED = 'expired'
 
 
+class RelationshipRole(str, Enum):
+    UNSPECIFIED = 'unspecified'
+    WOMAN = 'woman'
+    MAN = 'man'
+
+
 class ReminderRuleKind(str, Enum):
     ONE_TIME = 'one_time'
+    DAILY = 'daily'
+    WEEKDAYS = 'weekdays'
+    WEEKLY = 'weekly'
 
 
 class ReminderRuleStatus(str, Enum):
