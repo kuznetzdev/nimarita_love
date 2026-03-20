@@ -349,6 +349,30 @@ class CareRepository:
                 touched += 1
             return touched
 
+    async def cancel_open_for_pair(self, *, pair_id: int, now: datetime, reason: str = 'Пара завершена до доставки.') -> int:
+        async with self._db.transaction() as tx:
+            cursor = await tx.execute(
+                """
+                UPDATE care_dispatches
+                SET status = ?,
+                    next_attempt_at_utc = ?,
+                    processing_started_at = NULL,
+                    last_error = COALESCE(last_error, ?),
+                    updated_at = ?
+                WHERE pair_id = ? AND status IN (?, ?)
+                """,
+                (
+                    CareDispatchStatus.FAILED.value,
+                    now.isoformat(),
+                    reason,
+                    now.isoformat(),
+                    pair_id,
+                    CareDispatchStatus.PENDING.value,
+                    CareDispatchStatus.PROCESSING.value,
+                ),
+            )
+            return int(cursor.rowcount)
+
     async def register_response(
         self,
         *,

@@ -44,6 +44,24 @@ def _read_user_id_set(name: str) -> frozenset[int]:
         values.add(int(clean))
     return frozenset(values)
 
+def _read_origin_list(name: str) -> tuple[str, ...]:
+    raw = _read_optional(name)
+    if raw is None:
+        return ()
+    origins: list[str] = []
+    for chunk in raw.replace('\n', ',').replace(';', ',').split(','):
+        candidate = chunk.strip()
+        if not candidate:
+            continue
+        parsed = urlparse(candidate)
+        if parsed.scheme and parsed.netloc:
+            origin = f'{parsed.scheme}://{parsed.netloc}'
+        else:
+            origin = candidate.rstrip('/')
+        if origin not in origins:
+            origins.append(origin)
+    return tuple(origins)
+
 
 @dataclass(slots=True, frozen=True)
 class Settings:
@@ -86,6 +104,7 @@ class Settings:
     worker_heartbeat_stale_seconds: int = 90
     access_allowlist_enabled: bool = False
     allowed_user_ids: frozenset[int] = frozenset()
+    extra_cors_origins: tuple[str, ...] = ()
     sqlite_synchronous: str = 'FULL'
     sqlite_busy_timeout_ms: int = 15000
     sqlite_wal_autocheckpoint_pages: int = 1000
@@ -102,6 +121,18 @@ class Settings:
     backup_on_startup: bool = True
     backup_on_shutdown: bool = False
     maintenance_worker_poll_seconds: int = 30
+
+    @property
+    def allowed_cors_origins(self) -> tuple[str, ...]:
+        origins: list[str] = []
+        if self.webapp_public_url:
+            parsed = urlparse(self.webapp_public_url)
+            if parsed.scheme and parsed.netloc:
+                origins.append(f'{parsed.scheme}://{parsed.netloc}')
+        for origin in self.extra_cors_origins:
+            if origin and origin not in origins:
+                origins.append(origin)
+        return tuple(origins)
 
     @property
     def direct_main_app_link(self) -> str | None:
@@ -143,7 +174,7 @@ def load_settings() -> Settings:
         bot_username=bot_username.lstrip('@'),
         webapp_public_url=webapp_public_url,
         webapp_enabled=_read_bool('WEBAPP_ENABLED', True),
-        webapp_host=os.getenv('WEBAPP_LISTEN_HOST', '127.0.0.1'),
+        webapp_host=os.getenv('WEBAPP_LISTEN_HOST', '0.0.0.0'),
         webapp_port=_read_int('WEBAPP_LISTEN_PORT', 8080),
         database_path=database_path,
         log_level=os.getenv('LOG_LEVEL', 'INFO').upper(),
@@ -178,6 +209,7 @@ def load_settings() -> Settings:
         worker_heartbeat_stale_seconds=_read_int('WORKER_HEARTBEAT_STALE_SECONDS', 90),
         access_allowlist_enabled=_read_bool('ACCESS_ALLOWLIST_ENABLED', False),
         allowed_user_ids=_read_user_id_set('ALLOWED_USER_IDS'),
+        extra_cors_origins=_read_origin_list('WEBAPP_EXTRA_CORS_ORIGINS'),
         sqlite_synchronous=sqlite_synchronous,
         sqlite_busy_timeout_ms=_read_int('SQLITE_BUSY_TIMEOUT_MS', 15000),
         sqlite_wal_autocheckpoint_pages=_read_int('SQLITE_WAL_AUTOCHECKPOINT_PAGES', 1000),

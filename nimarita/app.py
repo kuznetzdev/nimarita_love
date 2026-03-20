@@ -26,6 +26,7 @@ from nimarita.services import (
     SystemService,
     UserService,
 )
+from nimarita.telegram.menu import sync_default_menu_button, sync_private_menu_button
 from nimarita.telegram.notifier import TelegramNotifier
 from nimarita.telegram.router import build_router
 from nimarita.telegram.ui import TelegramUI
@@ -75,6 +76,26 @@ class Runtime:
         await self.maintenance_worker.start()
         if self.settings.webapp_enabled:
             await self.web_server.start()
+        await self._sync_menu_buttons_on_startup()
+
+    async def _sync_menu_buttons_on_startup(self) -> None:
+        try:
+            await sync_default_menu_button(self.bot, settings=self.settings)
+        except Exception:
+            pass
+        for user in await self.users.list_private_chat_users():
+            if user.private_chat_id is None:
+                continue
+            try:
+                state = await self.pairing_service.get_dashboard(user.telegram_user_id)
+                await sync_private_menu_button(
+                    self.bot,
+                    chat_id=user.private_chat_id,
+                    state=state,
+                    settings=self.settings,
+                )
+            except Exception:
+                pass
 
     async def close(self) -> None:
         await self.web_server.stop()
@@ -121,6 +142,7 @@ async def build_runtime(settings: Settings) -> Runtime:
         settings=settings,
         links=links,
         reminders=reminder_repo,
+        care=care_repo,
         audit=audit_service,
     )
     reminder_service = ReminderService(

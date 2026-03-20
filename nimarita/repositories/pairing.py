@@ -66,6 +66,56 @@ class PairingRepository:
         )
         return _row_to_invite(row) if row is not None else None
 
+    async def bind_pending_invite_to_user(self, invite_id: int, invitee_user_id: int, now: datetime) -> PairInvite:
+        async with self._db.transaction() as tx:
+            invite_row = await tx.fetchone(
+                "SELECT * FROM pair_invites WHERE id = ? AND status = ?",
+                (invite_id, InviteStatus.PENDING.value),
+            )
+            if invite_row is None:
+                raise LookupError("Приглашение уже недоступно.")
+            invite = _row_to_invite(invite_row)
+            if invite.inviter_user_id == invitee_user_id:
+                raise ValueError("Нельзя открыть собственное приглашение как входящее.")
+            if invite.invitee_user_id is not None and invite.invitee_user_id != invitee_user_id:
+                raise PermissionError("Приглашение уже закреплено за другим пользователем.")
+            if invite.invitee_user_id is None:
+                await tx.execute(
+                    "UPDATE pair_invites SET invitee_user_id = ?, updated_at = ? WHERE id = ?",
+                    (invitee_user_id, now.isoformat(), invite_id),
+                )
+            bound_row = await tx.fetchone("SELECT * FROM pair_invites WHERE id = ?", (invite_id,))
+            assert bound_row is not None
+            return _row_to_invite(bound_row)
+
+    async def expire_pending_for_users(self, *, user_ids: tuple[int, ...], now: datetime, exclude_invite_id: int | None = None) -> int:
+        if not user_ids:
+            return 0
+        unique_user_ids = tuple(dict.fromkeys(user_ids))
+        inviter_placeholders = ",".join("?" for _ in unique_user_ids)
+        invitee_placeholders = ",".join("?" for _ in unique_user_ids)
+        conditions = [
+            "status = ?",
+            f"(inviter_user_id IN ({inviter_placeholders}) OR invitee_user_id IN ({invitee_placeholders}))",
+        ]
+        parameters: list[object] = [InviteStatus.PENDING.value, *unique_user_ids, *unique_user_ids]
+        if exclude_invite_id is not None:
+            conditions.append("id != ?")
+            parameters.append(exclude_invite_id)
+        query = (
+            "UPDATE pair_invites SET status = ?, updated_at = ? WHERE " + " AND ".join(conditions)
+        )
+        async with self._db.transaction() as tx:
+            cursor = await tx.execute(
+                query,
+                (
+                    InviteStatus.EXPIRED.value,
+                    now.isoformat(),
+                    *parameters,
+                ),
+            )
+            return int(cursor.rowcount)
+
     async def get_pending_invite_by_id(self, invite_id: int) -> PairInvite | None:
         row = await self._db.fetchone(
             "SELECT * FROM pair_invites WHERE id = ? AND status = ?",
@@ -138,6 +188,8 @@ class PairingRepository:
                 if invite_row is None:
                     raise LookupError("Приглашение уже не ожидает подтверждения.")
                 invite = _row_to_invite(invite_row)
+                if invite.invitee_user_id is not None and invite.invitee_user_id != invitee_user_id:
+                    raise PermissionError("Приглашение уже закреплено за другим пользователем.")
                 pair = await _create_pair_with_checks(tx, invite=invite, invitee_user_id=invitee_user_id, now=now)
                 await tx.execute(
                     """
@@ -151,6 +203,25 @@ class PairingRepository:
                         now.isoformat(),
                         now.isoformat(),
                         invite_id,
+                    ),
+                )
+                await tx.execute(
+                    """
+                    UPDATE pair_invites
+                    SET status = ?, updated_at = ?
+                    WHERE status = ?
+                      AND id != ?
+                      AND (inviter_user_id IN (?, ?) OR invitee_user_id IN (?, ?))
+                    """,
+                    (
+                        InviteStatus.EXPIRED.value,
+                        now.isoformat(),
+                        InviteStatus.PENDING.value,
+                        invite_id,
+                        invite.inviter_user_id,
+                        invitee_user_id,
+                        invite.inviter_user_id,
+                        invitee_user_id,
                     ),
                 )
                 accepted_row = await tx.fetchone("SELECT * FROM pair_invites WHERE id = ?", (invite_id,))
@@ -167,6 +238,9 @@ class PairingRepository:
             )
             if invite_row is None:
                 raise LookupError("Приглашение уже не ожидает подтверждения.")
+            invite = _row_to_invite(invite_row)
+            if invite.invitee_user_id is not None and invite.invitee_user_id != invitee_user_id:
+                raise PermissionError("Приглашение уже закреплено за другим пользователем.")
             await tx.execute(
                 """
                 UPDATE pair_invites

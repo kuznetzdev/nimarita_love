@@ -9,6 +9,7 @@ from nimarita.config import Settings
 from nimarita.domain.errors import ConflictError, NotFoundError, ValidationError
 from nimarita.domain.models import DashboardState, Pair, PairInvite, PairInvitePreview, User
 from nimarita.infra.links import InviteLinks, LinkBuilder
+from nimarita.repositories.care import CareRepository
 from nimarita.repositories.pairing import PairingRepository
 from nimarita.repositories.reminders import ReminderRepository
 from nimarita.repositories.users import UserRepository
@@ -31,6 +32,7 @@ class PairingService:
         settings: Settings,
         links: LinkBuilder,
         reminders: ReminderRepository | None = None,
+        care: CareRepository | None = None,
         audit: AuditService | None = None,
     ) -> None:
         self._pairing = pairing
@@ -38,6 +40,7 @@ class PairingService:
         self._settings = settings
         self._links = links
         self._reminders = reminders
+        self._care = care
         self._audit = audit
 
     async def get_dashboard(self, telegram_user_id: int) -> DashboardState:
@@ -80,6 +83,11 @@ class PairingService:
         active_pair = await self._pairing.get_active_pair_for_user(user.id)
         if active_pair is not None:
             raise ConflictError("У тебя уже есть активная пара. Сначала нужно завершить её.")
+        if not user.started_bot or user.private_chat_id is None:
+            raise ConflictError("Сначала напиши /start боту, чтобы он мог доставлять сообщения и открыть Mini App корректно.")
+        incoming = await self._pairing.get_latest_pending_incoming_invite(user.id)
+        if incoming is not None:
+            raise ConflictError("Сначала обработай входящее приглашение — подтверди или отклони его.")
 
         raw_token = secrets.token_urlsafe(24)
         invite = await self._pairing.create_invite(
@@ -102,13 +110,24 @@ class PairingService:
         return result
 
     async def preview_invite(self, telegram_user_id: int, raw_token: str) -> PairInvitePreview:
-        _user = await self._require_user(telegram_user_id)
+        user = await self._require_user(telegram_user_id)
         now = datetime.now(tz=UTC)
         await self._pairing.expire_due_invites(now)
 
         invite = await self._pairing.get_pending_invite_by_token_hash(_hash_token(raw_token))
         if invite is None:
             raise NotFoundError("Приглашение не найдено или уже недействительно.")
+        active_pair = await self._pairing.get_active_pair_for_user(user.id)
+        if active_pair is not None:
+            raise ConflictError("У тебя уже есть активная пара. Сначала заверши её, чтобы принимать новое приглашение.")
+        try:
+            invite = await self._pairing.bind_pending_invite_to_user(invite.id, user.id, now)
+        except LookupError as error:
+            raise NotFoundError("Приглашение не найдено или уже недействительно.") from error
+        except PermissionError as error:
+            raise ConflictError(str(error)) from error
+        except ValueError as error:
+            raise ValidationError(str(error)) from error
         inviter = await self._users.get_by_id(invite.inviter_user_id)
         if inviter is None:
             raise NotFoundError("Пользователь-инициатор не найден.")
@@ -137,6 +156,8 @@ class PairingService:
             accepted_invite, pair = await self._pairing.accept_invite(invite_id=invite_id, invitee_user_id=user.id, now=now)
         except LookupError as error:
             raise NotFoundError("Приглашение уже недоступно.") from error
+        except PermissionError as error:
+            raise ConflictError(str(error)) from error
         except ValueError as error:
             raise ConflictError(str(error)) from error
 
@@ -166,6 +187,8 @@ class PairingService:
             rejected_invite = await self._pairing.reject_invite(invite_id=invite_id, invitee_user_id=user.id, now=now)
         except LookupError as error:
             raise NotFoundError("Приглашение уже недоступно.") from error
+        except PermissionError as error:
+            raise ConflictError(str(error)) from error
 
         inviter = await self._users.get_by_id(rejected_invite.inviter_user_id)
         rejector = await self._users.get_by_id(user.id)
@@ -186,6 +209,8 @@ class PairingService:
             raise NotFoundError("Активной пары нет.")
         if self._reminders is not None:
             await self._reminders.cancel_open_for_pair(pair_id=pair.id, now=now)
+        if self._care is not None:
+            await self._care.cancel_open_for_pair(pair_id=pair.id, now=now)
         actor = await self._users.get_by_id(user.id)
         partner = await self._users.get_by_id(pair.partner_id_for(user.id))
         assert actor is not None and partner is not None

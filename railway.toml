@@ -3,5 +3,5 @@ builder = "railpack"
 
 [deploy]
 startCommand = "python main.py"
-healthcheckPath = "/api/v1/health"
+healthcheckPath = "/health/ready"
 restartPolicyType = "always"

@@ -34,7 +34,22 @@ jobs:
 
       - name: Inject API_BASE into index.html
         run: |
-          sed -i "s|PLACEHOLDER_API_BASE|${{ secrets.MINIAPP_API_BASE }}|g" _site/index.html
+          API_BASE="${{ secrets.MINIAPP_API_BASE }}"
+          if [ -z "$API_BASE" ]; then
+            API_BASE="https://nimaritalove-production.up.railway.app"
+          fi
+          sed -i "s|PLACEHOLDER_API_BASE|${API_BASE}|g" _site/index.html
+
+      - name: Verify API_BASE injection
+        run: |
+          if grep -q 'PLACEHOLDER_API_BASE' _site/index.html; then
+            echo "ERROR: PLACEHOLDER_API_BASE was not replaced in _site/index.html"
+            exit 1
+          fi
+          if ! grep -Eq 'https://[^"[:space:]]+' _site/index.html; then
+            echo "ERROR: injected index.html does not contain any HTTPS backend URL"
+            exit 1
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

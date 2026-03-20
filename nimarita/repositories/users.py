@@ -91,6 +91,15 @@ class UserRepository:
             (timezone, now.isoformat(), user_id),
         )
 
+    async def list_private_chat_users(self, *, started_only: bool = True) -> list[User]:
+        query = (
+            "SELECT * FROM users WHERE private_chat_id IS NOT NULL AND started_bot = 1 ORDER BY id ASC"
+            if started_only
+            else "SELECT * FROM users WHERE private_chat_id IS NOT NULL ORDER BY id ASC"
+        )
+        rows = await self._db.fetchall(query)
+        return [_row_to_user(row) for row in rows]
+
     async def get_by_telegram_user_id(self, telegram_user_id: int) -> User | None:
         row = await self._db.fetchone(
             "SELECT * FROM users WHERE telegram_user_id = ?",

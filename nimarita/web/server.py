@@ -25,6 +25,25 @@ logger = logging.getLogger(__name__)
 
 FRONTEND_PATH = Path(__file__).resolve().parent / 'static' / 'index.html'
 NO_STORE_HEADERS = {'Cache-Control': 'no-store'}
+API_CORS_ALLOW_METHODS = 'GET, POST, OPTIONS'
+API_CORS_ALLOW_HEADERS = 'Authorization, Content-Type'
+API_CORS_MAX_AGE_SECONDS = '86400'
+
+
+def _build_cors_headers(request: web.Request) -> dict[str, str]:
+    origin = request.headers.get('Origin')
+    if not origin:
+        return {}
+    allowed = request.app.get('allowed_cors_origins', ())
+    if origin not in allowed:
+        return {}
+    return {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Methods': API_CORS_ALLOW_METHODS,
+        'Access-Control-Allow-Headers': API_CORS_ALLOW_HEADERS,
+        'Access-Control-Max-Age': API_CORS_MAX_AGE_SECONDS,
+        'Vary': 'Origin',
+    }
 
 
 @web.middleware
@@ -46,6 +65,17 @@ async def access_log_middleware(request: web.Request, handler: web.Handler) -> w
     response = await handler(request)
     elapsed_ms = (time.perf_counter() - started) * 1000
     logger.info('HTTP %s %s -> %s %.1fms', request.method, request.path, response.status, elapsed_ms)
+    return response
+
+
+@web.middleware
+async def cors_middleware(request: web.Request, handler: web.Handler) -> web.StreamResponse:
+    if request.path.startswith('/api/') and request.method == 'OPTIONS':
+        response = web.Response(status=204, headers=NO_STORE_HEADERS)
+    else:
+        response = await handler(request)
+    for key, value in _build_cors_headers(request).items():
+        response.headers[key] = value
     return response
 
 
@@ -136,8 +166,9 @@ class WebServer:
         self._site = None
 
     def _build_app(self) -> web.Application:
-        app = web.Application(middlewares=[request_context_middleware, access_log_middleware, error_middleware])
+        app = web.Application(middlewares=[request_context_middleware, access_log_middleware, cors_middleware, error_middleware])
         app['audit_service'] = self._audit
+        app['allowed_cors_origins'] = self._settings.allowed_cors_origins
         app.router.add_get('/', self._index)
         app.router.add_get('/health', self._health_live)
         app.router.add_get('/health/live', self._health_live)

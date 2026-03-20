@@ -90,7 +90,7 @@
         overflow-wrap: anywhere;
       }
       .hidden { display: none !important; }
-      .error { color: var(--danger); font-weight: 600; }
+      .error { color: var(--danger); font-weight: 600; white-space: pre-wrap; }
       label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
       textarea, input, select {
         width: 100%;
@@ -140,6 +140,9 @@
         <section id="error" class="card hidden">
           <h2>Что-то пошло не так</h2>
           <p id="error-text" class="error"></p>
+          <div class="actions">
+            <button id="retry-bootstrap" class="secondary">Повторить</button>
+          </div>
         </section>
 
         <section id="no-pair" class="card hidden">
@@ -235,10 +238,15 @@
         // ========================================
   // API Configuration
   // ========================================
-  // 🔴 ВАЖНО: После деплоя на GitHub Pages замени пустую строку на URL твоего бэкенда
-  // Например: const API_BASE = 'https://your-backend.railway.app';
-  const API_BASE = 'PLACEHOLDER_API_BASE'; // оставь пустым для локальной разработки или укажи URL продакшн-сервера
+  const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
 
+      function normalizeApiBase(value) {
+        const normalized = String(value || '').trim();
+        if (!normalized || normalized === 'PLACEHOLDER_API_BASE') return null;
+        return normalized.replace(/\/+$/, '');
+      }
+
+      const API_BASE = normalizeApiBase(RAW_API_BASE);
       const tg = window.Telegram?.WebApp;
       const state = {
         sessionToken: null,
@@ -278,6 +286,7 @@
         emptyCareHistory: document.getElementById('empty-care-history'),
         careCounter: document.getElementById('care-counter'),
         careCategory: document.getElementById('care-category'),
+        retryBootstrap: document.getElementById('retry-bootstrap'),
       };
 
       const sections = ['loading', 'error', 'no-pair', 'outgoing', 'incoming', 'active'];
@@ -313,23 +322,78 @@
         el.careHistoryCard.classList.toggle('hidden', !visible);
       }
 
-      function showError(message) {
+      function buildApiConfigError() {
+        const current = String(RAW_API_BASE || '').trim() || '(пусто)';
+        return `Mini App не настроен.\nAPI_BASE: ${current}\nПроверь GitHub Pages deploy и замену PLACEHOLDER_API_BASE.`;
+      }
+
+      function showError(message, { alert = true } = {}) {
         el.errorText.textContent = message;
         setActiveBlocksVisible(false);
         showOnly('error');
-        tg?.showAlert?.(message);
+        if (alert) tg?.showAlert?.(message);
       }
 
-      async function api(path, options = {}) {
+      function buildApiUrl(path) {
+        if (!API_BASE) {
+          throw new Error(buildApiConfigError());
+        }
+        return `${API_BASE}${path}`;
+      }
+
+      async function api(path, options = {}, timeoutMs = 15000) {
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(), timeoutMs);
         const headers = new Headers(options.headers || {});
-        headers.set('Content-Type', 'application/json');
+        if (options.body !== undefined && !headers.has('Content-Type')) {
+          headers.set('Content-Type', 'application/json');
+        }
         if (state.sessionToken) {
           headers.set('Authorization', `Bearer ${state.sessionToken}`);
         }
-        const response = await fetch(API_BASE + path, { ...options, headers });
-        const data = await response.json();
-        if (!response.ok || !data.ok) {
-          throw new Error(data.error || 'Запрос завершился ошибкой.');
+
+        let response;
+        try {
+          response = await fetch(buildApiUrl(path), {
+            ...options,
+            headers,
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+        } catch (error) {
+          if (error?.name === 'AbortError') {
+            throw new Error(`Сервер не ответил за ${Math.round(timeoutMs / 1000)} сек.\nAPI: ${API_BASE || '(не задан)'}\nRailway может просыпаться после простоя.`);
+          }
+          if (error instanceof TypeError) {
+            throw new Error(`Нет связи с сервером.\nAPI: ${API_BASE || '(не задан)'}\nПроверь CORS, GitHub Pages deploy и доступность Railway.`);
+          }
+          throw error;
+        } finally {
+          window.clearTimeout(timer);
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        let data = null;
+        let responseText = '';
+        if (contentType.includes('application/json')) {
+          try {
+            data = await response.json();
+          } catch {
+            data = null;
+          }
+        } else {
+          responseText = await response.text().catch(() => '');
+        }
+
+        if (!response.ok) {
+          const message = data?.error || responseText || `HTTP ${response.status}`;
+          throw new Error(`${message}\nAPI: ${API_BASE || '(не задан)'}`);
+        }
+        if (!data || typeof data !== 'object') {
+          throw new Error(`Сервер вернул неожиданный ответ.\nAPI: ${API_BASE || '(не задан)'}\nHTTP: ${response.status}`);
+        }
+        if (!data.ok) {
+          throw new Error(`${data.error || 'Запрос завершился ошибкой.'}\nAPI: ${API_BASE || '(не задан)'}`);
         }
         return data;
       }
@@ -603,8 +667,9 @@
 
         setActiveBlocksVisible(false);
 
-        if (serverState.mode === 'incoming_invite' && serverState.incoming_invite?.inviter) {
-          el.incomingText.textContent = `${serverState.incoming_invite.inviter.display_name} приглашает тебя в пару.`;
+        if (serverState.mode === 'incoming_invite') {
+          const name = serverState.incoming_invite?.inviter?.display_name || 'Кто-то';
+          el.incomingText.textContent = `${name} приглашает тебя в пару.`;
           showOnly('incoming');
           return;
         }
@@ -686,9 +751,18 @@
 
       async function createReminder() {
         try {
+          const text = el.reminderText.value.trim();
+          if (!text) {
+            showError('Напиши текст напоминания.', { alert: false });
+            return;
+          }
+          if (!el.reminderDatetime.value) {
+            showError('Выбери дату и время для напоминания.', { alert: false });
+            return;
+          }
           const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
           const payload = {
-            text: el.reminderText.value,
+            text,
             scheduled_for_local: el.reminderDatetime.value,
             timezone,
           };
@@ -749,21 +823,33 @@
         applyTheme();
         tg?.ready?.();
         tg?.expand?.();
+        showOnly('loading');
+        setActiveBlocksVisible(false);
+        el.errorText.textContent = '';
 
         el.reminderMeta.textContent = `Твой timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone || 'unknown'}`;
+
+        if (!tg) {
+          showError('Mini App должен открываться внутри Telegram.', { alert: false });
+          return;
+        }
+        if (!tg.initData) {
+          showError('Telegram не передал initData. Открой приложение через бота, а не обычной ссылкой.', { alert: false });
+          return;
+        }
 
         try {
           const auth = await api('/api/v1/auth', {
             method: 'POST',
             body: JSON.stringify({
-              init_data: tg?.initData ?? '',
+              init_data: tg.initData,
               start_param: getStartParam(),
             }),
           });
           state.sessionToken = auth.session_token;
           applyPayload(auth);
         } catch (error) {
-          showError(error.message || 'Не удалось пройти авторизацию.');
+          showError(error.message || 'Не удалось пройти авторизацию.', { alert: false });
         }
       }
 
@@ -773,9 +859,19 @@
       document.getElementById('reject-invite').addEventListener('click', rejectInvite);
       document.getElementById('unpair').addEventListener('click', unpair);
       document.getElementById('create-reminder').addEventListener('click', createReminder);
-      document.getElementById('refresh-state').addEventListener('click', refreshState);
-      document.getElementById('care-history-refresh').addEventListener('click', refreshCareHistory);
-      document.getElementById('care-random').addEventListener('click', sendRandomCare);
+      document.getElementById('refresh-state').addEventListener('click', () => {
+        refreshState().catch((error) => showError(error.message || 'Не удалось обновить состояние.'));
+      });
+      document.getElementById('care-history-refresh').addEventListener('click', () => {
+        refreshCareHistory().catch((error) => showError(error.message || 'Не удалось обновить историю.'));
+      });
+      document.getElementById('care-random').addEventListener('click', () => {
+        sendRandomCare().catch((error) => showError(error.message || 'Не удалось отправить care-сообщение.'));
+      });
+      el.retryBootstrap.addEventListener('click', () => {
+        bootstrap().catch((error) => showError(error.message || 'Не удалось повторно открыть Mini App.', { alert: false }));
+      });
+      tg?.onEvent?.('themeChanged', applyTheme);
       el.careCategory.addEventListener('change', () => {
         state.careCategory = el.careCategory.value;
         tg?.HapticFeedback?.selectionChanged?.();
