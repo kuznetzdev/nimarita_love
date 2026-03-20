@@ -103,8 +103,12 @@ async def error_middleware(request: web.Request, handler: web.Handler) -> web.St
                 payload={'error': str(error), 'method': request.method},
             )
         return web.json_response({'ok': False, 'error': str(error)}, status=403, headers=NO_STORE_HEADERS)
-    except (ConflictError, NotFoundError, ValidationError) as error:
+    except ValidationError as error:
         return web.json_response({'ok': False, 'error': str(error)}, status=400, headers=NO_STORE_HEADERS)
+    except ConflictError as error:
+        return web.json_response({'ok': False, 'error': str(error)}, status=409, headers=NO_STORE_HEADERS)
+    except NotFoundError as error:
+        return web.json_response({'ok': False, 'error': str(error)}, status=404, headers=NO_STORE_HEADERS)
     except Exception:
         logger.exception('Unhandled web error for %s %s', request.method, request.path)
         return web.json_response(
