@@ -134,7 +134,7 @@
 
         <section id="loading" class="card">
           <h2>Инициализация</h2>
-          <p>Проверяю Telegram-auth, поднимаю сессию и загружаю состояние пары.</p>
+          <p id="loading-text">Проверяю Telegram-auth, поднимаю сессию и загружаю состояние пары. Если Railway спал, первый ответ может занять до 25 секунд.</p>
         </section>
 
         <section id="error" class="card hidden">
@@ -289,7 +289,15 @@
         retryBootstrap: document.getElementById('retry-bootstrap'),
       };
 
-      const sections = ['loading', 'error', 'no-pair', 'outgoing', 'incoming', 'active'];
+      const API_REQUEST_TIMEOUT_MS = 25000;
+      const sectionMap = {
+        loading: el.loading,
+        error: el.error,
+        'no-pair': el.noPair,
+        outgoing: el.outgoing,
+        incoming: el.incoming,
+        active: el.active,
+      };
 
       function applyTheme() {
         if (!tg?.themeParams) return;
@@ -309,10 +317,14 @@
       }
 
       function showOnly(key) {
-        for (const section of sections) {
-          el[section].classList.add('hidden');
+        for (const section of Object.values(sectionMap)) {
+          section.classList.add('hidden');
         }
-        el[key].classList.remove('hidden');
+        const target = sectionMap[key];
+        if (!target) {
+          throw new Error(`Неизвестная секция интерфейса: ${key}`);
+        }
+        target.classList.remove('hidden');
       }
 
       function setActiveBlocksVisible(visible) {
@@ -324,6 +336,36 @@
 
       function buildApiConfigError() {
         return 'Mini App не настроен: API_BASE пустой. Обратись к администратору.';
+      }
+
+      function buildLaunchContextError() {
+        if (!tg) {
+          return 'Mini App открыт вне Telegram. Открой приложение из бота через menu button или inline-кнопку.';
+        }
+        if (!tg.initData) {
+          return 'Telegram не передал initData. Открой Mini App именно из бота, а не из обычного браузера или предпросмотра ссылки.';
+        }
+        return null;
+      }
+
+      function describeBootstrapFailure(error) {
+        const launchContextError = buildLaunchContextError();
+        if (launchContextError) {
+          return `${launchContextError}
+API: ${API_BASE || 'not configured'}`;
+        }
+        return error?.message || 'Не удалось пройти авторизацию.';
+      }
+
+      function reportFatalError(error) {
+        const message = error?.message || String(error) || 'Произошла непредвиденная ошибка в Mini App.';
+        try {
+          showError(message, { alert: false });
+        } catch {
+          el.errorText.textContent = message;
+          setActiveBlocksVisible(false);
+          el.error.classList.remove('hidden');
+        }
       }
 
       function showError(message, { alert = true } = {}) {
@@ -340,7 +382,7 @@
         return `${API_BASE}${path}`;
       }
 
-      async function api(path, options = {}, timeoutMs = 15000) {
+      async function api(path, options = {}, timeoutMs = API_REQUEST_TIMEOUT_MS) {
         const controller = new AbortController();
         const timer = window.setTimeout(() => controller.abort(), timeoutMs);
         const headers = new Headers(options.headers || {});
@@ -839,9 +881,16 @@
           state.sessionToken = auth.session_token;
           applyPayload(auth);
         } catch (error) {
-          showError(error.message || 'Не удалось пройти авторизацию.', { alert: false });
+          showError(describeBootstrapFailure(error), { alert: false });
         }
       }
+
+      window.addEventListener('error', (event) => {
+        reportFatalError(event.error || new Error(event.message || 'Необработанная ошибка JavaScript.'));
+      });
+      window.addEventListener('unhandledrejection', (event) => {
+        reportFatalError(event.reason instanceof Error ? event.reason : new Error(String(event.reason || 'Необработанное отклонение Promise.')));
+      });
 
       document.getElementById('create-invite').addEventListener('click', () => createInvite(el.inviteLinks));
       document.getElementById('refresh-invite').addEventListener('click', () => createInvite(el.inviteLinksRepeat));
@@ -868,7 +917,9 @@
         renderCareTemplates(state.careTemplates || []);
       });
 
-      bootstrap();
+      bootstrap().catch((error) => {
+        reportFatalError(error);
+      });
     </script>
   </body>
 </html>

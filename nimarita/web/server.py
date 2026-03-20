@@ -24,7 +24,11 @@ from nimarita.web.auth import SessionManager, TelegramInitDataVerifier, WebAuthE
 logger = logging.getLogger(__name__)
 
 FRONTEND_PATH = Path(__file__).resolve().parent / 'static' / 'index.html'
-NO_STORE_HEADERS = {'Cache-Control': 'no-store'}
+NO_STORE_HEADERS = {
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+}
 API_CORS_ALLOW_METHODS = 'GET, POST, OPTIONS'
 API_CORS_ALLOW_HEADERS = 'Authorization, Content-Type'
 API_CORS_MAX_AGE_SECONDS = '86400'
@@ -65,7 +69,15 @@ async def access_log_middleware(request: web.Request, handler: web.Handler) -> w
     started = time.perf_counter()
     response = await handler(request)
     elapsed_ms = (time.perf_counter() - started) * 1000
-    logger.info('HTTP %s %s -> %s %.1fms', request.method, request.path, response.status, elapsed_ms)
+    logger.info(
+        'HTTP %s %s -> %s %.1fms origin=%r request_id=%s',
+        request.method,
+        request.path,
+        response.status,
+        elapsed_ms,
+        request.headers.get('Origin'),
+        request.get('request_id'),
+    )
     return response
 
 
@@ -191,6 +203,9 @@ class WebServer:
         app.router.add_get('/health', self._health_live)
         app.router.add_get('/health/live', self._health_live)
         app.router.add_get('/health/ready', self._health_ready)
+        app.router.add_get('/api/v1/health', self._health_live)
+        app.router.add_get('/api/v1/health/live', self._health_live)
+        app.router.add_get('/api/v1/health/ready', self._health_ready)
         app.router.add_post('/api/v1/auth', self._auth)
         app.router.add_get('/api/v1/state', self._state)
         app.router.add_post('/api/v1/pairs/invite', self._create_invite)
