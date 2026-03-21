@@ -6,6 +6,7 @@ from nimarita.domain.enums import ReminderRuleKind
 from nimarita.domain.models import CareEnvelope, DashboardState, PairInvitePreview, ReminderEnvelope, User
 from nimarita.infra.links import InviteLinks
 from nimarita.services.care import CareReplyResult
+from nimarita.services.reminders import reminder_kind_label
 
 
 def private_chat_only_text() -> str:
@@ -103,7 +104,7 @@ def reminder_delivery_text(envelope: ReminderEnvelope) -> str:
     return (
         '⏰ Напоминание от партнёра\n\n'
         f'От: {envelope.creator.display_name}\n'
-        f'Повтор: {_reminder_kind_label(envelope.rule.kind)}\n'
+        f'Повтор: {reminder_kind_label(envelope.rule.kind, recurrence_every=envelope.rule.recurrence_every, recurrence_unit=envelope.rule.recurrence_unit)}\n'
         f'Запланировано на: {local_dt}\n\n'
         f'{envelope.occurrence.text}'
     )
@@ -111,7 +112,7 @@ def reminder_delivery_text(envelope: ReminderEnvelope) -> str:
 
 def reminder_created_text(envelope: ReminderEnvelope) -> str:
     local_dt = envelope.occurrence.scheduled_at_utc.astimezone().strftime('%d.%m.%Y %H:%M %Z')
-    return f'Напоминание для {envelope.recipient.display_name} поставлено на {local_dt}. Повтор: {_reminder_kind_label(envelope.rule.kind)}.'
+    return f'Напоминание для {envelope.recipient.display_name} поставлено на {local_dt}. Повтор: {reminder_kind_label(envelope.rule.kind, recurrence_every=envelope.rule.recurrence_every, recurrence_unit=envelope.rule.recurrence_unit)}.'
 
 
 def reminder_cancelled_text(envelope: ReminderEnvelope) -> str:
@@ -131,12 +132,12 @@ def reminder_sender_failed_text(recipient: User, text: str, error_text: str) -> 
 
 
 def reminder_sender_acknowledged_text(envelope: ReminderEnvelope) -> str:
-    return f'{envelope.recipient.display_name} отметил(а) напоминание как выполненное ✅'
+    return f'Получено подтверждение от {envelope.recipient.display_name}: напоминание выполнено ✅'
 
 
 def reminder_sender_snoozed_text(current: ReminderEnvelope, follow_up: ReminderEnvelope) -> str:
     local_dt = follow_up.occurrence.scheduled_at_utc.astimezone().strftime('%d.%m.%Y %H:%M %Z')
-    return f'{current.recipient.display_name} отложил(а) напоминание. Новый слот: {local_dt}.'
+    return f'Напоминание перенесено для {current.recipient.display_name}. Новый слот: {local_dt}.'
 
 
 def reminder_action_done_text(envelope: ReminderEnvelope) -> str:
@@ -196,7 +197,7 @@ def care_hidden_text(envelope: CareEnvelope) -> str:
 
 def care_sender_response_text(result: CareReplyResult) -> str:
     return (
-        f'{result.envelope.recipient.display_name} ответил(а) на твоё сообщение заботы.\n\n'
+        f'Есть ответ от {result.envelope.recipient.display_name} на твоё сообщение заботы.\n\n'
         f'{result.reply.emoji} {result.reply.title}\n'
         f'{result.reply.body}'
     )
@@ -312,14 +313,3 @@ def invalid_action_text() -> str:
 def card_hidden_short_text() -> str:
     return 'Карточка скрыта'
 
-
-def _reminder_kind_label(kind: ReminderRuleKind) -> str:
-    if kind is ReminderRuleKind.ONE_TIME:
-        return 'один раз'
-    if kind is ReminderRuleKind.DAILY:
-        return 'каждый день'
-    if kind is ReminderRuleKind.WEEKDAYS:
-        return 'по будням'
-    if kind is ReminderRuleKind.WEEKLY:
-        return 'раз в неделю'
-    return kind.value

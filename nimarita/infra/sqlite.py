@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS reminder_rules (
     text TEXT NOT NULL,
     creator_timezone TEXT NOT NULL,
     origin_scheduled_at_utc TEXT NOT NULL,
+    recurrence_every INTEGER NOT NULL DEFAULT 1,
+    recurrence_unit TEXT,
     status TEXT NOT NULL,
     cancelled_at TEXT,
     created_at TEXT NOT NULL,
@@ -257,6 +259,12 @@ _USERS_COMPAT_COLUMNS: dict[str, str] = {
 _CARE_TEMPLATE_COMPAT_COLUMNS: dict[str, str] = {
     'sender_role': "TEXT NOT NULL DEFAULT 'unspecified'",
     'recipient_role': "TEXT NOT NULL DEFAULT 'unspecified'",
+}
+
+
+_REMINDER_RULES_COMPAT_COLUMNS: dict[str, str] = {
+    'recurrence_every': 'INTEGER NOT NULL DEFAULT 1',
+    'recurrence_unit': 'TEXT',
 }
 
 _AUDIT_LOGS_SQL = """
@@ -506,5 +514,11 @@ class SQLiteDatabase:
                     connection.execute(f'ALTER TABLE care_dispatches ADD COLUMN {column_name} {definition}')
             connection.execute('UPDATE care_dispatches SET next_attempt_at_utc = COALESCE(next_attempt_at_utc, created_at)')
             connection.execute('UPDATE care_dispatches SET delivery_attempts_count = COALESCE(delivery_attempts_count, 0)')
+        if 'reminder_rules' in existing_tables:
+            columns = {row['name'] for row in connection.execute('PRAGMA table_info(reminder_rules)')}
+            for column_name, definition in _REMINDER_RULES_COMPAT_COLUMNS.items():
+                if column_name not in columns:
+                    connection.execute(f'ALTER TABLE reminder_rules ADD COLUMN {column_name} {definition}')
+            connection.execute('UPDATE reminder_rules SET recurrence_every = COALESCE(recurrence_every, 1)')
         connection.executescript(_AUDIT_LOGS_SQL)
         connection.commit()

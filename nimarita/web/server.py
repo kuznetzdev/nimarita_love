@@ -9,14 +9,14 @@ from typing import Any
 from aiohttp import web
 
 from nimarita.config import Settings
-from nimarita.domain.enums import RelationshipRole, ReminderRuleKind
+from nimarita.domain.enums import RelationshipRole, ReminderIntervalUnit, ReminderRuleKind
 from nimarita.domain.errors import AccessDeniedError, ConflictError, NotFoundError, ValidationError
 from nimarita.domain.models import DashboardState
 from nimarita.logging import reset_request_id, set_request_id
 from nimarita.services.audit import AuditService
 from nimarita.services.care import CareService
 from nimarita.services.pairing import InviteIssueResult, PairingService
-from nimarita.services.reminders import ReminderService
+from nimarita.services.reminders import ReminderService, reminder_kind_label
 from nimarita.services.system import SystemService
 from nimarita.services.users import UserService
 from nimarita.telegram.notifier import TelegramNotifier
@@ -216,6 +216,7 @@ class WebServer:
         app.router.add_post('/api/v1/pairs/unpair', self._unpair)
         app.router.add_get('/api/v1/reminders', self._list_reminders)
         app.router.add_post('/api/v1/reminders', self._create_reminder)
+        app.router.add_post('/api/v1/reminders/{rule_id}', self._update_reminder)
         app.router.add_post('/api/v1/reminders/{rule_id}/cancel', self._cancel_reminder)
         app.router.add_get('/api/v1/care/templates', self._list_care_templates)
         app.router.add_get('/api/v1/care/history', self._list_care_history)
@@ -456,17 +457,17 @@ class WebServer:
         text = _read_optional_text(body.get('text')) or ''
         scheduled_for_local = _read_optional_text(body.get('scheduled_for_local')) or ''
         timezone = _read_optional_text(body.get('timezone')) or self._settings.default_timezone
-        kind_text = (_read_optional_text(body.get('kind')) or ReminderRuleKind.ONE_TIME.value).lower()
-        try:
-            kind = ReminderRuleKind(kind_text)
-        except ValueError as error:
-            raise WebAuthError(status=400, message='Некорректный тип напоминания.') from error
+        kind = _read_reminder_kind(body.get('kind'))
+        recurrence_every = _read_optional_int(body.get('recurrence_every')) or 1
+        recurrence_unit = _read_recurrence_unit(body.get('recurrence_unit'))
         envelope = await self._reminder_service.create_reminder(
             telegram_user_id=telegram_user_id,
             text=text,
             scheduled_for_local=scheduled_for_local,
             timezone=timezone,
             kind=kind,
+            recurrence_every=recurrence_every,
+            recurrence_unit=recurrence_unit,
         )
         reminders = [
             self._serialize_reminder(item)
@@ -475,6 +476,39 @@ class WebServer:
         return web.json_response(
             {'ok': True, 'reminder': self._serialize_reminder(envelope), 'reminders': reminders},
             status=201,
+            headers=NO_STORE_HEADERS,
+        )
+
+    async def _update_reminder(self, request: web.Request) -> web.Response:
+        telegram_user_id = self._require_session(request)
+        rule_id_text = request.match_info.get('rule_id', '')
+        try:
+            rule_id = int(rule_id_text)
+        except ValueError as error:
+            raise WebAuthError(status=400, message='Некорректный идентификатор напоминания.') from error
+        body = await self._read_json(request)
+        text = _read_optional_text(body.get('text')) or ''
+        scheduled_for_local = _read_optional_text(body.get('scheduled_for_local')) or ''
+        timezone = _read_optional_text(body.get('timezone')) or self._settings.default_timezone
+        kind = _read_reminder_kind(body.get('kind'))
+        recurrence_every = _read_optional_int(body.get('recurrence_every')) or 1
+        recurrence_unit = _read_recurrence_unit(body.get('recurrence_unit'))
+        envelope = await self._reminder_service.update_reminder(
+            telegram_user_id=telegram_user_id,
+            rule_id=rule_id,
+            text=text,
+            scheduled_for_local=scheduled_for_local,
+            timezone=timezone,
+            kind=kind,
+            recurrence_every=recurrence_every,
+            recurrence_unit=recurrence_unit,
+        )
+        reminders = [
+            self._serialize_reminder(item)
+            for item in await self._reminder_service.list_pair_reminders(telegram_user_id=telegram_user_id)
+        ]
+        return web.json_response(
+            {'ok': True, 'reminder': self._serialize_reminder(envelope), 'reminders': reminders},
             headers=NO_STORE_HEADERS,
         )
 
@@ -676,12 +710,22 @@ class WebServer:
             'rule_id': envelope.rule.id,
             'occurrence_id': envelope.occurrence.id,
             'kind': envelope.rule.kind.value,
-            'kind_label': _reminder_kind_label(envelope.rule.kind),
+            'kind_label': reminder_kind_label(
+                envelope.rule.kind,
+                recurrence_every=envelope.rule.recurrence_every,
+                recurrence_unit=envelope.rule.recurrence_unit,
+            ),
             'text': envelope.occurrence.text,
             'status': envelope.occurrence.status.value,
+            'rule_status': envelope.rule.status.value,
             'handled_action': envelope.occurrence.handled_action,
             'scheduled_at_utc': envelope.occurrence.scheduled_at_utc.isoformat(),
             'next_attempt_at_utc': envelope.occurrence.next_attempt_at_utc.isoformat(),
+            'origin_scheduled_at_utc': envelope.rule.origin_scheduled_at_utc.isoformat(),
+            'creator_timezone': envelope.rule.creator_timezone,
+            'recurrence_every': envelope.rule.recurrence_every,
+            'recurrence_unit': envelope.rule.recurrence_unit.value if envelope.rule.recurrence_unit else None,
+            'cancelled_at': envelope.rule.cancelled_at.isoformat() if envelope.rule.cancelled_at else None,
             'creator': self._serialize_user(envelope.creator),
             'recipient': self._serialize_user(envelope.recipient),
             'delivery_attempts_count': envelope.occurrence.delivery_attempts_count,
@@ -752,13 +796,19 @@ def _read_optional_int(value: Any) -> int | None:
         return None
 
 
-def _reminder_kind_label(kind: ReminderRuleKind) -> str:
-    if kind is ReminderRuleKind.ONE_TIME:
-        return 'Один раз'
-    if kind is ReminderRuleKind.DAILY:
-        return 'Каждый день'
-    if kind is ReminderRuleKind.WEEKDAYS:
-        return 'По будням'
-    if kind is ReminderRuleKind.WEEKLY:
-        return 'Раз в неделю'
-    return kind.value
+def _read_reminder_kind(value: Any) -> ReminderRuleKind:
+    kind_text = (_read_optional_text(value) or ReminderRuleKind.ONE_TIME.value).lower()
+    try:
+        return ReminderRuleKind(kind_text)
+    except ValueError as error:
+        raise WebAuthError(status=400, message='Некорректный тип напоминания.') from error
+
+
+def _read_recurrence_unit(value: Any) -> ReminderIntervalUnit | None:
+    unit_text = (_read_optional_text(value) or '').lower()
+    if not unit_text:
+        return None
+    try:
+        return ReminderIntervalUnit(unit_text)
+    except ValueError as error:
+        raise WebAuthError(status=400, message='Некорректная единица повторения.') from error

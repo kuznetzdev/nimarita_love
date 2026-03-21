@@ -267,6 +267,97 @@
         gap: 8px;
       }
 
+      .tabs-card {
+        padding: 10px;
+      }
+
+      .tabs {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .tab-button {
+        min-height: 42px;
+        border-radius: 14px;
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        padding: 10px 12px;
+      }
+
+      .tab-button.is-active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-color: transparent;
+      }
+
+      .tab-button[aria-selected="true"] {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-color: transparent;
+      }
+
+      .reminder-item {
+        gap: 12px;
+      }
+
+      .reminder-summary {
+        display: grid;
+        gap: 6px;
+      }
+
+      .reminder-actions-inline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .reminder-history {
+        display: grid;
+        gap: 8px;
+        padding-top: 4px;
+      }
+
+      .reminder-history-entry {
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        padding: 12px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .reminder-history-entry.is-current {
+        border-color: var(--accent-strong);
+      }
+
+      .reminder-history-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .meta-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .section-note {
+        color: var(--muted);
+      }
+
+      .small-button {
+        min-height: 38px;
+        padding: 10px 12px;
+      }
+
+      .hidden-space {
+        display: none !important;
+      }
+
       .divider {
         height: 1px;
         background: var(--border);
@@ -477,6 +568,10 @@
           padding-right: 12px;
         }
 
+        .tabs {
+          grid-template-columns: 1fr;
+        }
+
         .hero,
         .card {
           padding: 16px;
@@ -598,10 +693,21 @@
           </div>
         </section>
 
+        <section id="workspace-tabs" class="card hidden tabs-card">
+          <div class="tabs" role="tablist" aria-label="Разделы">
+            <button id="tab-pair" class="tab-button is-active" type="button" role="tab" aria-selected="true">Пара</button>
+            <button id="tab-reminders" class="tab-button" type="button" role="tab" aria-selected="false">Напоминания</button>
+            <button id="tab-messages" class="tab-button" type="button" role="tab" aria-selected="false">Сообщения</button>
+          </div>
+        </section>
+
         <section id="reminder-form-card" class="card hidden">
           <div class="header-row">
-            <h2>Новое напоминание</h2>
-            <span class="meta">Отправится партнёру</span>
+            <div class="grid tight">
+              <h2 id="reminder-form-title">Новое напоминание</h2>
+              <p id="reminder-form-hint" class="meta">Отправится партнёру в выбранное время.</p>
+            </div>
+            <span class="meta">Только для вашей пары</span>
           </div>
           <div class="grid">
             <label>
@@ -613,30 +719,51 @@
                 Когда отправить
                 <input id="reminder-datetime" type="datetime-local" />
               </label>
-              <label style="flex: 1 1 180px;">
-                Частота
+              <label style="flex: 1 1 220px;">
+                Регулярность
                 <select id="reminder-kind">
                   <option value="one_time">Один раз</option>
                   <option value="daily">Каждый день</option>
                   <option value="weekdays">По будням</option>
                   <option value="weekly">Раз в неделю</option>
+                  <option value="interval">Свой интервал</option>
+                </select>
+              </label>
+            </div>
+            <div id="reminder-interval-controls" class="split hidden">
+              <label style="flex: 1 1 140px;">
+                Повторять каждые
+                <input id="reminder-interval-every" type="number" min="1" max="365" step="1" value="2" />
+              </label>
+              <label style="flex: 1 1 180px;">
+                Единица
+                <select id="reminder-interval-unit">
+                  <option value="hour">Часа/часов</option>
+                  <option value="day">Дня/дней</option>
+                  <option value="week">Недели/недель</option>
+                  <option value="month">Месяца/месяцев</option>
                 </select>
               </label>
             </div>
             <p id="reminder-meta" class="meta"></p>
             <div class="actions">
               <button id="create-reminder" class="primary" type="button">Сохранить напоминание</button>
+              <button id="cancel-reminder-edit" class="ghost hidden" type="button">Не менять</button>
             </div>
           </div>
         </section>
 
         <section id="reminders-card" class="card hidden">
           <div class="header-row">
-            <h2>Напоминания</h2>
+            <div class="grid tight">
+              <h2>Напоминания</h2>
+              <p class="meta">Одна карточка — одно напоминание. История уходит внутрь карточки.</p>
+            </div>
             <span id="reminders-counter" class="meta"></span>
           </div>
           <div id="empty-reminders" class="empty-state">Пока напоминаний нет.</div>
           <div id="reminder-list" class="list"></div>
+          <button id="reminders-more" class="secondary hidden" type="button">Показать ещё</button>
         </section>
 
         <section id="care-browser-card" class="card hidden">
@@ -711,6 +838,11 @@ const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
         careTemplates: [],
         careHistory: [],
         careCategory: 'all',
+        activeTab: 'pair',
+        reminderFormMode: 'create',
+        reminderEditingRuleId: null,
+        reminderHistoryExpanded: {},
+        remindersExpanded: false,
         noticeTimer: null,
         autoRefreshTimer: null,
       };
@@ -737,6 +869,10 @@ const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
         activeText: document.getElementById('active-text'),
         activeRoleUser: document.getElementById('active-role-user'),
         activeRolePartner: document.getElementById('active-role-partner'),
+        workspaceTabs: document.getElementById('workspace-tabs'),
+        tabPair: document.getElementById('tab-pair'),
+        tabReminders: document.getElementById('tab-reminders'),
+        tabMessages: document.getElementById('tab-messages'),
         inviteLinks: document.getElementById('invite-links'),
         inviteLinksRepeat: document.getElementById('invite-links-repeat'),
         createInvite: document.getElementById('create-invite'),
@@ -746,15 +882,22 @@ const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
         refreshState: document.getElementById('refresh-state'),
         unpair: document.getElementById('unpair'),
         reminderFormCard: document.getElementById('reminder-form-card'),
+        reminderFormTitle: document.getElementById('reminder-form-title'),
+        reminderFormHint: document.getElementById('reminder-form-hint'),
         reminderText: document.getElementById('reminder-text'),
         reminderDatetime: document.getElementById('reminder-datetime'),
         reminderKind: document.getElementById('reminder-kind'),
+        reminderIntervalControls: document.getElementById('reminder-interval-controls'),
+        reminderIntervalEvery: document.getElementById('reminder-interval-every'),
+        reminderIntervalUnit: document.getElementById('reminder-interval-unit'),
         reminderMeta: document.getElementById('reminder-meta'),
         createReminder: document.getElementById('create-reminder'),
+        cancelReminderEdit: document.getElementById('cancel-reminder-edit'),
         remindersCard: document.getElementById('reminders-card'),
         remindersCounter: document.getElementById('reminders-counter'),
         emptyReminders: document.getElementById('empty-reminders'),
         reminderList: document.getElementById('reminder-list'),
+        remindersMore: document.getElementById('reminders-more'),
         careBrowserCard: document.getElementById('care-browser-card'),
         careCounter: document.getElementById('care-counter'),
         careCategory: document.getElementById('care-category'),
@@ -957,14 +1100,64 @@ function applyTheme() {
         el.profileCard.classList.toggle('hidden', !visible);
       }
 
-      function setActiveBlocksVisible(visible) {
+      function updateReminderModeUI() {
+        const editing = state.reminderFormMode === 'edit';
+        el.reminderFormTitle.textContent = editing ? 'Редактирование напоминания' : 'Новое напоминание';
+        el.reminderFormHint.textContent = editing
+          ? 'Изменения применятся к ближайшей активной отправке и будущему расписанию.'
+          : 'Отправится партнёру в выбранное время.';
+        el.createReminder.textContent = editing ? 'Сохранить изменения' : 'Сохранить напоминание';
+        el.cancelReminderEdit.classList.toggle('hidden', !editing);
+      }
+
+      function resetReminderForm({ keepText = false } = {}) {
+        state.reminderFormMode = 'create';
+        state.reminderEditingRuleId = null;
+        if (!keepText) {
+          el.reminderText.value = '';
+        }
+        el.reminderDatetime.value = '';
+        el.reminderKind.value = 'one_time';
+        el.reminderIntervalEvery.value = '2';
+        el.reminderIntervalUnit.value = 'day';
+        updateReminderRecurrenceControls();
+        updateReminderModeUI();
+      }
+
+      function setActiveTab(tab) {
+        state.activeTab = ['pair', 'reminders', 'messages'].includes(tab) ? tab : 'pair';
         [
-          el.reminderFormCard,
-          el.remindersCard,
-          el.careBrowserCard,
-          el.customCareCard,
-          el.careHistoryCard,
-        ].forEach((node) => node.classList.toggle('hidden', !visible));
+          [el.tabPair, state.activeTab === 'pair'],
+          [el.tabReminders, state.activeTab === 'reminders'],
+          [el.tabMessages, state.activeTab === 'messages'],
+        ].forEach(([button, active]) => {
+          if (!button) return;
+          button.classList.toggle('is-active', active);
+          button.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        const tabVisible = !!(state.currentState?.mode === 'active');
+        el.active.classList.toggle('hidden', !tabVisible || state.activeTab !== 'pair');
+        el.reminderFormCard.classList.toggle('hidden', !tabVisible || state.activeTab !== 'reminders');
+        el.remindersCard.classList.toggle('hidden', !tabVisible || state.activeTab !== 'reminders');
+        el.careBrowserCard.classList.toggle('hidden', !tabVisible || state.activeTab !== 'messages');
+        el.customCareCard.classList.toggle('hidden', !tabVisible || state.activeTab !== 'messages');
+        el.careHistoryCard.classList.toggle('hidden', !tabVisible || state.activeTab !== 'messages');
+      }
+
+      function setActiveBlocksVisible(visible) {
+        el.workspaceTabs.classList.toggle('hidden', !visible);
+        if (!visible) {
+          [
+            el.active,
+            el.reminderFormCard,
+            el.remindersCard,
+            el.careBrowserCard,
+            el.customCareCard,
+            el.careHistoryCard,
+          ].forEach((node) => node.classList.add('hidden'));
+          return;
+        }
+        setActiveTab(state.activeTab || 'pair');
       }
 
       function clearNotice() {
@@ -1204,10 +1397,109 @@ function openExternalLink(url) {
 
 function renderActiveHeader(user, partner) {
   if (!user || !partner) return;
-  el.activeText.textContent = `${partner.display_name} — твой подтверждённый партнёр. Можно отправлять напоминания и тёплые сообщения.`;
+  el.activeText.textContent = `${partner.display_name} — твой подтверждённый партнёр. Здесь можно бережно напоминать, поддерживать и отвечать друг другу.`;
   el.activeRoleUser.textContent = `Ты: ${roleLabel(user)}`;
   el.activeRolePartner.textContent = `${partner.display_name}: ${roleLabel(partner)}`;
 }
+
+      function recurrenceUnitLabel(unit, every) {
+        const value = Number(every || 1);
+        const labels = {
+          hour: ['час', 'часа', 'часов'],
+          day: ['день', 'дня', 'дней'],
+          week: ['неделю', 'недели', 'недель'],
+          month: ['месяц', 'месяца', 'месяцев'],
+        };
+        const group = labels[unit] || ['единицу', 'единицы', 'единиц'];
+        return `${value} ${pluralRu(value, group[0], group[1], group[2])}`;
+      }
+
+      function pluralRu(number, one, few, many) {
+        const n = Math.abs(Number(number || 0)) % 100;
+        const n1 = n % 10;
+        if (n >= 11 && n <= 19) return many;
+        if (n1 === 1) return one;
+        if (n1 >= 2 && n1 <= 4) return few;
+        return many;
+      }
+
+      function updateReminderRecurrenceControls() {
+        const isInterval = el.reminderKind.value === 'interval';
+        el.reminderIntervalControls.classList.toggle('hidden', !isInterval);
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
+        const scheduleHint = el.reminderDatetime.value ? `Первый запуск: ${formatDateTime(new Date(el.reminderDatetime.value))}.` : 'Выбери дату и время первого запуска.';
+        if (!isInterval) {
+          el.reminderMeta.textContent = `${scheduleHint} Часовой пояс: ${timezone}.`;
+          return;
+        }
+        const every = Math.max(1, Number(el.reminderIntervalEvery.value || 1));
+        const unit = el.reminderIntervalUnit.value || 'day';
+        el.reminderMeta.textContent = `${scheduleHint} Затем повторять каждые ${recurrenceUnitLabel(unit, every)}. Часовой пояс: ${timezone}.`;
+      }
+
+      function reminderApiPayload() {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
+        return {
+          text: el.reminderText.value.trim(),
+          scheduled_for_local: el.reminderDatetime.value,
+          timezone,
+          kind: el.reminderKind.value,
+          recurrence_every: Math.max(1, Number(el.reminderIntervalEvery.value || 1)),
+          recurrence_unit: el.reminderIntervalUnit.value || 'day',
+        };
+      }
+
+      function buildReminderGroups(reminders) {
+        const source = Array.isArray(reminders) ? reminders : [];
+        const groups = new Map();
+        source.forEach((item) => {
+          if (!groups.has(item.rule_id)) {
+            groups.set(item.rule_id, []);
+          }
+          groups.get(item.rule_id).push(item);
+        });
+        return Array.from(groups.values())
+          .map((items) => {
+            const sorted = [...items].sort((a, b) => new Date(b.scheduled_at_utc) - new Date(a.scheduled_at_utc));
+            const editableOccurrence = sorted.find((item) => item.status === 'scheduled');
+            return {
+              ruleId: sorted[0].rule_id,
+              items: sorted,
+              primary: editableOccurrence || sorted[0],
+              editableOccurrence,
+            };
+          })
+          .sort((a, b) => new Date(b.primary.scheduled_at_utc) - new Date(a.primary.scheduled_at_utc));
+      }
+
+      function startReminderEdit(group) {
+        const current = group?.editableOccurrence || group?.primary;
+        if (!current) return;
+        state.reminderFormMode = 'edit';
+        state.reminderEditingRuleId = current.rule_id;
+        el.reminderText.value = current.text || '';
+        el.reminderDatetime.value = toDatetimeLocalValue(current.scheduled_at_utc || current.origin_scheduled_at_utc);
+        el.reminderKind.value = current.kind || 'one_time';
+        el.reminderIntervalEvery.value = String(current.recurrence_every || 1);
+        el.reminderIntervalUnit.value = current.recurrence_unit || 'day';
+        updateReminderModeUI();
+        updateReminderRecurrenceControls();
+        setActiveTab('reminders');
+        el.reminderFormCard.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+
+      function toDatetimeLocalValue(value) {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+        const pad = (v) => String(v).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      }
+
+      function toggleReminderHistory(ruleId) {
+        state.reminderHistoryExpanded[ruleId] = !state.reminderHistoryExpanded[ruleId];
+        renderReminders(state.reminders || []);
+      }
 
       function filteredTemplates() {
         const templates = state.careTemplates || [];
@@ -1309,11 +1601,16 @@ function renderActiveHeader(user, partner) {
 
       function renderReminders(reminders) {
         state.reminders = Array.isArray(reminders) ? reminders : [];
+        const groups = buildReminderGroups(state.reminders);
+        const visibleGroups = state.remindersExpanded ? groups : groups.slice(0, 4);
         el.reminderList.innerHTML = '';
-        el.remindersCounter.textContent = state.reminders.length ? `${state.reminders.length} в списке` : '';
-        el.emptyReminders.classList.toggle('hidden', state.reminders.length > 0);
+        el.remindersCounter.textContent = groups.length ? `${groups.length} ${pluralRu(groups.length, 'напоминание', 'напоминания', 'напоминаний')}` : '';
+        el.emptyReminders.classList.toggle('hidden', groups.length > 0);
+        el.remindersMore.classList.toggle('hidden', groups.length <= 4);
+        el.remindersMore.textContent = state.remindersExpanded ? 'Свернуть список' : 'Показать ещё';
 
-        state.reminders.forEach((item) => {
+        visibleGroups.forEach((group) => {
+          const item = group.primary;
           const card = document.createElement('div');
           card.className = 'reminder-item';
 
@@ -1329,15 +1626,29 @@ function renderActiveHeader(user, partner) {
           status.textContent = reminderStatusLabels[item.status] || item.status;
           top.append(title, status);
 
+          const summary = document.createElement('div');
+          summary.className = 'reminder-summary';
+
           const body = document.createElement('div');
           body.className = 'reminder-body';
           body.textContent = item.text;
 
           const meta = document.createElement('div');
           meta.className = 'meta';
-          meta.textContent = `${formatDateTime(item.scheduled_at_utc)} · для ${item.recipient.display_name}`;
+          if (group.editableOccurrence) {
+            meta.textContent = `Ближайшая отправка: ${formatDateTime(group.editableOccurrence.scheduled_at_utc)} · для ${item.recipient.display_name}`;
+          } else {
+            meta.textContent = `Последнее событие: ${formatDateTime(item.scheduled_at_utc)} · для ${item.recipient.display_name}`;
+          }
 
-          card.append(top, body, meta);
+          const cycle = document.createElement('div');
+          cycle.className = 'meta';
+          cycle.textContent = item.kind === 'one_time'
+            ? 'Без повторов'
+            : `Регулярность: ${item.kind_label.toLowerCase()}`;
+
+          summary.append(body, meta, cycle);
+          card.append(top, summary);
 
           if (item.last_error) {
             const error = document.createElement('div');
@@ -1346,21 +1657,77 @@ function renderActiveHeader(user, partner) {
             card.appendChild(error);
           }
 
-          const canCancel = item.creator?.telegram_user_id === currentUser()?.telegram_user_id && item.status === 'scheduled';
+          const canEdit = item.creator?.telegram_user_id === currentUser()?.telegram_user_id
+            && item.rule_status === 'active'
+            && !!group.editableOccurrence;
+          const canCancel = canEdit;
+          const actions = document.createElement('div');
+          actions.className = 'reminder-actions-inline';
+
+          if (canEdit) {
+            const edit = document.createElement('button');
+            edit.type = 'button';
+            edit.className = 'secondary small-button';
+            edit.textContent = 'Изменить';
+            edit.addEventListener('click', () => startReminderEdit(group));
+            actions.appendChild(edit);
+          }
+
           if (canCancel) {
-            const actions = document.createElement('div');
-            actions.className = 'toolbar';
             const cancel = document.createElement('button');
             cancel.type = 'button';
-            cancel.className = 'danger';
-            cancel.textContent = 'Отменить';
+            cancel.className = 'danger small-button';
+            cancel.textContent = 'Остановить';
             cancel.addEventListener('click', () => {
-              withButtonBusy(cancel, 'Отменяю…', async () => {
+              withButtonBusy(cancel, 'Останавливаю…', async () => {
                 await cancelReminder(item.rule_id);
               }).catch((error) => showError(error.message || 'Не удалось отменить напоминание.'));
             });
             actions.appendChild(cancel);
+          }
+
+          if (group.items.length > 1) {
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'ghost small-button';
+            const expanded = !!state.reminderHistoryExpanded[item.rule_id];
+            toggle.textContent = expanded ? 'Скрыть историю' : `История (${group.items.length})`;
+            toggle.addEventListener('click', () => toggleReminderHistory(item.rule_id));
+            actions.appendChild(toggle);
+          }
+
+          if (actions.childNodes.length) {
             card.appendChild(actions);
+          }
+
+          if (state.reminderHistoryExpanded[item.rule_id]) {
+            const history = document.createElement('div');
+            history.className = 'reminder-history';
+            group.items.forEach((entry, index) => {
+              const row = document.createElement('div');
+              row.className = `reminder-history-entry ${index === 0 ? 'is-current' : ''}`;
+              const rowTitle = document.createElement('div');
+              rowTitle.className = 'reminder-history-title';
+              rowTitle.textContent = index === 0 ? 'Текущее состояние' : 'Прошлый слот';
+              const rowMeta = document.createElement('div');
+              rowMeta.className = 'meta';
+              rowMeta.textContent = `${formatDateTime(entry.scheduled_at_utc)} · ${reminderStatusLabels[entry.status] || entry.status}`;
+              row.append(rowTitle, rowMeta);
+              if (entry.handled_action) {
+                const handled = document.createElement('div');
+                handled.className = 'meta';
+                handled.textContent = `Действие: ${entry.handled_action}`;
+                row.appendChild(handled);
+              }
+              if (entry.last_error) {
+                const err = document.createElement('div');
+                err.className = 'meta error-text';
+                err.textContent = `Ошибка: ${entry.last_error}`;
+                row.appendChild(err);
+              }
+              history.appendChild(row);
+            });
+            card.appendChild(history);
           }
 
           el.reminderList.appendChild(card);
@@ -1574,14 +1941,17 @@ function renderActiveHeader(user, partner) {
 
         if (serverState.mode === 'active' && partner) {
           renderActiveHeader(user, partner);
+          showPrimary('active');
           setActiveBlocksVisible(true);
           renderReminders(state.reminders);
           renderCareTemplates(state.careTemplates);
           renderCareHistory(state.careHistory);
-          showPrimary('active');
+          updateReminderRecurrenceControls();
+          updateReminderModeUI();
           return;
         }
 
+        resetReminderForm();
         setActiveBlocksVisible(false);
 
         if (serverState.mode === 'incoming_invite') {
@@ -1672,27 +2042,24 @@ function renderActiveHeader(user, partner) {
         tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
-      async function createReminder() {
-        const text = el.reminderText.value.trim();
-        if (!text) {
+      async function submitReminder() {
+        const payload = reminderApiPayload();
+        if (!payload.text) {
           throw new Error('Напиши текст напоминания.');
         }
-        if (!el.reminderDatetime.value) {
+        if (!payload.scheduled_for_local) {
           throw new Error('Выбери дату и время для напоминания.');
         }
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
-        const result = await api('/api/v1/reminders', {
+        const editing = state.reminderFormMode === 'edit' && state.reminderEditingRuleId;
+        const endpoint = editing ? `/api/v1/reminders/${state.reminderEditingRuleId}` : '/api/v1/reminders';
+        const result = await api(endpoint, {
           method: 'POST',
-          body: JSON.stringify({
-            text,
-            scheduled_for_local: el.reminderDatetime.value,
-            timezone,
-            kind: el.reminderKind.value,
-          }),
+          body: JSON.stringify(payload),
         });
-        el.reminderText.value = '';
         renderReminders(result.reminders || []);
-        showNotice('Напоминание сохранено');
+        resetReminderForm();
+        setActiveTab('reminders');
+        showNotice(editing ? 'Изменения сохранены' : 'Напоминание сохранено');
         tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
@@ -1707,7 +2074,10 @@ function renderActiveHeader(user, partner) {
         if (!confirmed) return;
         const result = await api(`/api/v1/reminders/${ruleId}/cancel`, { method: 'POST', body: '{}' });
         renderReminders(result.reminders || []);
-        showNotice('Напоминание отменено');
+        if (state.reminderEditingRuleId === ruleId) {
+          resetReminderForm();
+        }
+        showNotice('Напоминание остановлено');
         tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
@@ -1838,7 +2208,29 @@ function renderActiveHeader(user, partner) {
       });
 
       el.createReminder.addEventListener('click', () => {
-        withButtonBusy(el.createReminder, 'Сохраняю…', createReminder).catch((error) => showError(error.message || 'Не удалось создать напоминание.'));
+        withButtonBusy(el.createReminder, state.reminderFormMode === 'edit' ? 'Сохраняю…' : 'Сохраняю…', submitReminder).catch((error) => showError(error.message || 'Не удалось сохранить напоминание.'));
+      });
+
+      el.cancelReminderEdit.addEventListener('click', () => {
+        resetReminderForm();
+        showNotice('Редактирование отменено', 'warning');
+      });
+
+      [el.tabPair, el.tabReminders, el.tabMessages].forEach((button) => {
+        button.addEventListener('click', () => {
+          const mapping = { 'tab-pair': 'pair', 'tab-reminders': 'reminders', 'tab-messages': 'messages' };
+          setActiveTab(mapping[button.id] || 'pair');
+          tg?.HapticFeedback?.selectionChanged?.();
+        });
+      });
+
+      [el.reminderKind, el.reminderDatetime, el.reminderIntervalEvery, el.reminderIntervalUnit].forEach((node) => {
+        node.addEventListener('change', updateReminderRecurrenceControls);
+      });
+
+      el.remindersMore.addEventListener('click', () => {
+        state.remindersExpanded = !state.remindersExpanded;
+        renderReminders(state.reminders || []);
       });
 
       el.careRandom.addEventListener('click', () => {

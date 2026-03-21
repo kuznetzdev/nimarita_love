@@ -9,6 +9,7 @@ from .enums import (
     InviteStatus,
     PairStatus,
     RelationshipRole,
+    ReminderIntervalUnit,
     ReminderOccurrenceStatus,
     ReminderRuleKind,
     ReminderRuleStatus,
@@ -122,6 +123,8 @@ class ReminderRule:
     text: str
     creator_timezone: str
     origin_scheduled_at_utc: datetime
+    recurrence_every: int
+    recurrence_unit: ReminderIntervalUnit | None
     status: ReminderRuleStatus
     cancelled_at: datetime | None
     created_at: datetime

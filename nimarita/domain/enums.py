@@ -26,6 +26,14 @@ class ReminderRuleKind(str, Enum):
     DAILY = 'daily'
     WEEKDAYS = 'weekdays'
     WEEKLY = 'weekly'
+    INTERVAL = 'interval'
+
+
+class ReminderIntervalUnit(str, Enum):
+    HOUR = 'hour'
+    DAY = 'day'
+    WEEK = 'week'
+    MONTH = 'month'
 
 
 class ReminderRuleStatus(str, Enum):

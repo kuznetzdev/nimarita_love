@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from nimarita.catalog import CARE_QUICK_REPLY_DEFINITIONS, CARE_TEMPLATE_DEFINITIONS
 from nimarita.config import Settings
 from nimarita.domain.enums import RelationshipRole
 from nimarita.domain.errors import ConflictError
@@ -141,6 +142,18 @@ class CareServiceTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(item.category == 'woman_to_man' for item in man_templates))
         self.assertTrue(any(item.category == 'woman_to_man' for item in woman_templates))
         self.assertFalse(any(item.category == 'man_to_woman' for item in woman_templates))
+
+    async def test_care_templates_and_quick_replies_do_not_use_parenthetical_gender_forms(self) -> None:
+        banned_tokens = ('(а)', '(смог', '(знал', '(нужна)', '(важна)', '(пошла)', '(пришла)')
+        banned_neutral_phrases = ('всё одному', 'Ты мне очень нужен', 'Ты уже сделал много')
+        for template in CARE_TEMPLATE_DEFINITIONS:
+            haystack = f"{template.title} {template.body}"
+            self.assertFalse(any(token in haystack for token in banned_tokens), haystack)
+            if template.sender_role is RelationshipRole.UNSPECIFIED and template.recipient_role is RelationshipRole.UNSPECIFIED:
+                self.assertFalse(any(token in haystack for token in banned_neutral_phrases), haystack)
+        for reply in CARE_QUICK_REPLY_DEFINITIONS:
+            haystack = f"{reply.title} {reply.body}"
+            self.assertFalse(any(token in haystack for token in banned_tokens), haystack)
 
     async def test_custom_care_and_custom_reply_flow(self) -> None:
         sent = await self.care.queue_custom(

@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:  # pragma: no cover - optional in constrained runtimes
+    def load_dotenv(*_args, **_kwargs) -> bool:
+        return False
 
 load_dotenv()
 

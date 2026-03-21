@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from nimarita.domain.enums import ReminderOccurrenceStatus, ReminderRuleKind, ReminderRuleStatus
+from nimarita.domain.enums import ReminderIntervalUnit, ReminderOccurrenceStatus, ReminderRuleKind, ReminderRuleStatus
 from nimarita.domain.models import ReminderOccurrence, ReminderRule
 from nimarita.infra.sqlite import SQLiteDatabase, SQLiteTransaction
 
@@ -23,6 +23,8 @@ class ReminderRepository:
         creator_timezone: str,
         scheduled_at_utc: datetime,
         now: datetime,
+        recurrence_every: int = 1,
+        recurrence_unit: ReminderIntervalUnit | None = None,
     ) -> tuple[ReminderRule, ReminderOccurrence]:
         async with self._db.transaction() as tx:
             cursor = await tx.execute(
@@ -35,11 +37,13 @@ class ReminderRepository:
                     text,
                     creator_timezone,
                     origin_scheduled_at_utc,
+                    recurrence_every,
+                    recurrence_unit,
                     status,
                     cancelled_at,
                     created_at,
                     updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
                 """,
                 (
                     pair_id,
@@ -49,6 +53,8 @@ class ReminderRepository:
                     text,
                     creator_timezone,
                     scheduled_at_utc.isoformat(),
+                    recurrence_every,
+                    recurrence_unit.value if recurrence_unit is not None else None,
                     ReminderRuleStatus.ACTIVE.value,
                     now.isoformat(),
                     now.isoformat(),
@@ -168,6 +174,8 @@ class ReminderRepository:
             creator_timezone=creator_timezone,
             scheduled_at_utc=scheduled_at_utc,
             now=now,
+            recurrence_every=1,
+            recurrence_unit=None,
         )
 
     async def create_occurrence(
@@ -205,6 +213,8 @@ class ReminderRepository:
                 rr.text AS rule_text,
                 rr.creator_timezone AS rule_creator_timezone,
                 rr.origin_scheduled_at_utc AS rule_origin_scheduled_at_utc,
+                rr.recurrence_every AS rule_recurrence_every,
+                rr.recurrence_unit AS rule_recurrence_unit,
                 rr.status AS rule_status,
                 rr.cancelled_at AS rule_cancelled_at,
                 rr.created_at AS rule_created_at,
@@ -289,6 +299,89 @@ class ReminderRepository:
             assert updated_rule_row is not None and updated_occurrence_row is not None
             return _row_to_rule(updated_rule_row), _row_to_occurrence(updated_occurrence_row)
 
+    async def update_rule(
+        self,
+        *,
+        pair_id: int,
+        rule_id: int,
+        actor_user_id: int,
+        text: str,
+        kind: ReminderRuleKind,
+        creator_timezone: str,
+        scheduled_at_utc: datetime,
+        recurrence_every: int,
+        recurrence_unit: ReminderIntervalUnit | None,
+        now: datetime,
+    ) -> tuple[ReminderRule, ReminderOccurrence]:
+        async with self._db.transaction() as tx:
+            rule_row = await tx.fetchone(
+                "SELECT * FROM reminder_rules WHERE id = ? AND pair_id = ?",
+                (rule_id, pair_id),
+            )
+            if rule_row is None:
+                raise LookupError("Правило напоминания не найдено.")
+            rule = _row_to_rule(rule_row)
+            if rule.creator_user_id != actor_user_id:
+                raise PermissionError("Только создатель может редактировать это напоминание.")
+            if rule.status is not ReminderRuleStatus.ACTIVE:
+                raise ValueError("Можно редактировать только активные напоминания.")
+            occurrence_row = await tx.fetchone(
+                """
+                SELECT * FROM reminder_occurrences
+                WHERE rule_id = ? AND status = ?
+                ORDER BY scheduled_at_utc ASC, id ASC
+                LIMIT 1
+                """,
+                (rule_id, ReminderOccurrenceStatus.SCHEDULED.value),
+            )
+            if occurrence_row is None:
+                raise ValueError("Нет ближайшего запланированного экземпляра для редактирования.")
+            occurrence = _row_to_occurrence(occurrence_row)
+            await tx.execute(
+                """
+                UPDATE reminder_rules
+                SET kind = ?,
+                    text = ?,
+                    creator_timezone = ?,
+                    origin_scheduled_at_utc = ?,
+                    recurrence_every = ?,
+                    recurrence_unit = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    kind.value,
+                    text,
+                    creator_timezone,
+                    scheduled_at_utc.isoformat(),
+                    recurrence_every,
+                    recurrence_unit.value if recurrence_unit is not None else None,
+                    now.isoformat(),
+                    rule_id,
+                ),
+            )
+            await tx.execute(
+                """
+                UPDATE reminder_occurrences
+                SET text = ?,
+                    scheduled_at_utc = ?,
+                    next_attempt_at_utc = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    text,
+                    scheduled_at_utc.isoformat(),
+                    scheduled_at_utc.isoformat(),
+                    now.isoformat(),
+                    occurrence.id,
+                ),
+            )
+            updated_rule_row = await tx.fetchone("SELECT * FROM reminder_rules WHERE id = ?", (rule_id,))
+            updated_occurrence_row = await tx.fetchone("SELECT * FROM reminder_occurrences WHERE id = ?", (occurrence.id,))
+            assert updated_rule_row is not None and updated_occurrence_row is not None
+            return _row_to_rule(updated_rule_row), _row_to_occurrence(updated_occurrence_row)
+
     async def cancel_open_for_pair(self, *, pair_id: int, now: datetime) -> int:
         async with self._db.transaction() as tx:
             await tx.execute(
@@ -364,6 +457,8 @@ class ReminderRepository:
                     rr.text AS rule_text,
                     rr.creator_timezone AS rule_creator_timezone,
                     rr.origin_scheduled_at_utc AS rule_origin_scheduled_at_utc,
+                    rr.recurrence_every AS rule_recurrence_every,
+                    rr.recurrence_unit AS rule_recurrence_unit,
                     rr.status AS rule_status,
                     rr.cancelled_at AS rule_cancelled_at,
                     rr.created_at AS rule_created_at,
@@ -623,6 +718,8 @@ def _row_to_rule(row: Any) -> ReminderRule:
         text=row["text"],
         creator_timezone=row["creator_timezone"],
         origin_scheduled_at_utc=datetime.fromisoformat(row["origin_scheduled_at_utc"]),
+        recurrence_every=int(row["recurrence_every"]) if row["recurrence_every"] is not None else 1,
+        recurrence_unit=ReminderIntervalUnit(row["recurrence_unit"]) if row["recurrence_unit"] else None,
         status=ReminderRuleStatus(row["status"]),
         cancelled_at=_parse_datetime(row["cancelled_at"]),
         created_at=datetime.fromisoformat(row["created_at"]),
@@ -664,6 +761,8 @@ def _joined_row_to_rule(row: Any) -> ReminderRule:
         text=row["rule_text"],
         creator_timezone=row["rule_creator_timezone"],
         origin_scheduled_at_utc=datetime.fromisoformat(row["rule_origin_scheduled_at_utc"]),
+        recurrence_every=int(row["rule_recurrence_every"]) if row["rule_recurrence_every"] is not None else 1,
+        recurrence_unit=ReminderIntervalUnit(row["rule_recurrence_unit"]) if row["rule_recurrence_unit"] else None,
         status=ReminderRuleStatus(row["rule_status"]),
         cancelled_at=_parse_datetime(row["rule_cancelled_at"]),
         created_at=datetime.fromisoformat(row["rule_created_at"]),

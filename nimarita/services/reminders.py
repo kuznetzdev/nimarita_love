@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from calendar import monthrange
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from nimarita.config import Settings
-from nimarita.domain.enums import ReminderRuleKind, ReminderRuleStatus
+from nimarita.domain.enums import ReminderIntervalUnit, ReminderRuleKind, ReminderRuleStatus
 from nimarita.domain.errors import ConflictError, NotFoundError, ValidationError
 from nimarita.domain.models import ReminderEnvelope, ReminderOccurrence, ReminderRule, User
 from nimarita.repositories.pairing import PairingRepository
@@ -62,6 +63,8 @@ class ReminderService:
         scheduled_for_local: str,
         timezone: str,
         kind: ReminderRuleKind,
+        recurrence_every: int = 1,
+        recurrence_unit: ReminderIntervalUnit | None = None,
     ) -> ReminderEnvelope:
         user = await self._require_user(telegram_user_id)
         pair, partner = await self._require_active_pair(user)
@@ -77,6 +80,8 @@ class ReminderService:
         if scheduled_at_utc <= now - timedelta(seconds=5):
             raise ValidationError("Время напоминания должно быть в будущем.")
 
+        recurrence_every, recurrence_unit = _normalize_recurrence(kind, recurrence_every, recurrence_unit)
+
         await self._users.set_timezone(user.id, timezone)
         rule, occurrence = await self._reminders.create_reminder(
             pair_id=pair.id,
@@ -87,6 +92,8 @@ class ReminderService:
             creator_timezone=timezone,
             scheduled_at_utc=scheduled_at_utc,
             now=now,
+            recurrence_every=recurrence_every,
+            recurrence_unit=recurrence_unit,
         )
         creator = await self._users.get_by_id(rule.creator_user_id)
         recipient = await self._users.get_by_id(rule.recipient_user_id)
@@ -101,6 +108,8 @@ class ReminderService:
                 'recipient_user_id': envelope.recipient.id,
                 'scheduled_at_utc': envelope.occurrence.scheduled_at_utc.isoformat(),
                 'kind': envelope.rule.kind.value,
+                'recurrence_every': envelope.rule.recurrence_every,
+                'recurrence_unit': envelope.rule.recurrence_unit.value if envelope.rule.recurrence_unit else None,
             },
         )
         return envelope
@@ -154,6 +163,71 @@ class ReminderService:
                 'pair_id': pair.id,
                 'rule_id': envelope.rule.id,
                 'recipient_user_id': envelope.recipient.id,
+            },
+        )
+        return envelope
+
+    async def update_reminder(
+        self,
+        *,
+        telegram_user_id: int,
+        rule_id: int,
+        text: str,
+        scheduled_for_local: str,
+        timezone: str,
+        kind: ReminderRuleKind,
+        recurrence_every: int = 1,
+        recurrence_unit: ReminderIntervalUnit | None = None,
+    ) -> ReminderEnvelope:
+        user = await self._require_user(telegram_user_id)
+        pair, _partner = await self._require_active_pair(user)
+
+        clean_text = _normalize_text(text)
+        if not clean_text:
+            raise ValidationError("Текст напоминания не должен быть пустым.")
+        if len(clean_text) > 400:
+            raise ValidationError("Текст напоминания слишком длинный. Максимум 400 символов.")
+
+        scheduled_at_utc = _parse_local_datetime_to_utc(scheduled_for_local, timezone)
+        now = datetime.now(tz=UTC)
+        if scheduled_at_utc <= now - timedelta(seconds=5):
+            raise ValidationError("Время напоминания должно быть в будущем.")
+
+        recurrence_every, recurrence_unit = _normalize_recurrence(kind, recurrence_every, recurrence_unit)
+        await self._users.set_timezone(user.id, timezone)
+        try:
+            rule, occurrence = await self._reminders.update_rule(
+                pair_id=pair.id,
+                rule_id=rule_id,
+                actor_user_id=user.id,
+                text=clean_text,
+                kind=kind,
+                creator_timezone=timezone,
+                scheduled_at_utc=scheduled_at_utc,
+                recurrence_every=recurrence_every,
+                recurrence_unit=recurrence_unit,
+                now=now,
+            )
+        except LookupError as error:
+            raise NotFoundError("Напоминание не найдено.") from error
+        except PermissionError as error:
+            raise ConflictError(str(error)) from error
+        except ValueError as error:
+            raise ConflictError(str(error)) from error
+        creator = await self._users.get_by_id(rule.creator_user_id)
+        recipient = await self._users.get_by_id(rule.recipient_user_id)
+        assert creator is not None and recipient is not None
+        envelope = ReminderEnvelope(rule=rule, occurrence=occurrence, creator=creator, recipient=recipient)
+        await self._audit_event(
+            action='reminder_updated',
+            entity_id=envelope.occurrence.id,
+            actor_user_id=envelope.creator.id,
+            payload={
+                'rule_id': envelope.rule.id,
+                'scheduled_at_utc': envelope.occurrence.scheduled_at_utc.isoformat(),
+                'kind': envelope.rule.kind.value,
+                'recurrence_every': envelope.rule.recurrence_every,
+                'recurrence_unit': envelope.rule.recurrence_unit.value if envelope.rule.recurrence_unit else None,
             },
         )
         return envelope
@@ -402,12 +476,61 @@ def _compute_next_occurrence(rule: ReminderRule, scheduled_at_utc: datetime) -> 
         next_local = local_dt + timedelta(days=1)
         while next_local.weekday() >= 5:
             next_local += timedelta(days=1)
+    elif rule.kind is ReminderRuleKind.INTERVAL:
+        if rule.recurrence_unit is ReminderIntervalUnit.HOUR:
+            next_local = local_dt + timedelta(hours=rule.recurrence_every)
+        elif rule.recurrence_unit is ReminderIntervalUnit.DAY:
+            next_local = local_dt + timedelta(days=rule.recurrence_every)
+        elif rule.recurrence_unit is ReminderIntervalUnit.WEEK:
+            next_local = local_dt + timedelta(weeks=rule.recurrence_every)
+        elif rule.recurrence_unit is ReminderIntervalUnit.MONTH:
+            next_local = _add_months(local_dt, rule.recurrence_every)
+        else:
+            raise ValidationError('Для интервального напоминания не задана единица повторения.')
     else:
         raise ValidationError('Для этого типа напоминания повтор не поддерживается.')
     return next_local.astimezone(UTC)
 
 
-def reminder_kind_label(kind: ReminderRuleKind) -> str:
+def _add_months(value: datetime, months: int) -> datetime:
+    total_month = (value.month - 1) + months
+    year = value.year + total_month // 12
+    month = total_month % 12 + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return value.replace(year=year, month=month, day=day)
+
+
+def _normalize_recurrence(
+    kind: ReminderRuleKind,
+    recurrence_every: int,
+    recurrence_unit: ReminderIntervalUnit | None,
+) -> tuple[int, ReminderIntervalUnit | None]:
+    every = int(recurrence_every or 1)
+    if every < 1:
+        raise ValidationError('Интервал повторения должен быть не меньше 1.')
+    if kind is ReminderRuleKind.ONE_TIME:
+        return 1, None
+    if kind is ReminderRuleKind.DAILY:
+        return 1, ReminderIntervalUnit.DAY
+    if kind is ReminderRuleKind.WEEKDAYS:
+        return 1, ReminderIntervalUnit.DAY
+    if kind is ReminderRuleKind.WEEKLY:
+        return 1, ReminderIntervalUnit.WEEK
+    if kind is ReminderRuleKind.INTERVAL:
+        if recurrence_unit is None:
+            raise ValidationError('Для своего интервала нужно выбрать единицу повторения.')
+        if every > 365:
+            raise ValidationError('Слишком большой интервал повторения.')
+        return every, recurrence_unit
+    raise ValidationError('Некорректный тип напоминания.')
+
+
+def reminder_kind_label(
+    kind: ReminderRuleKind,
+    *,
+    recurrence_every: int = 1,
+    recurrence_unit: ReminderIntervalUnit | None = None,
+) -> str:
     if kind is ReminderRuleKind.ONE_TIME:
         return 'Один раз'
     if kind is ReminderRuleKind.DAILY:
@@ -416,4 +539,27 @@ def reminder_kind_label(kind: ReminderRuleKind) -> str:
         return 'По будням'
     if kind is ReminderRuleKind.WEEKLY:
         return 'Раз в неделю'
+    if kind is ReminderRuleKind.INTERVAL:
+        every = max(1, int(recurrence_every or 1))
+        unit = recurrence_unit.value if isinstance(recurrence_unit, ReminderIntervalUnit) else str(recurrence_unit or '')
+        labels = {
+            'hour': ('час', 'часа', 'часов'),
+            'day': ('день', 'дня', 'дней'),
+            'week': ('неделю', 'недели', 'недель'),
+            'month': ('месяц', 'месяца', 'месяцев'),
+        }
+        word = labels.get(unit, ('единицу', 'единицы', 'единиц'))
+        return f'Каждые {every} {_plural_ru(every, *word)}'
     return kind.value
+
+
+def _plural_ru(number: int, one: str, few: str, many: str) -> str:
+    n = abs(number) % 100
+    n1 = n % 10
+    if 11 <= n <= 19:
+        return many
+    if n1 == 1:
+        return one
+    if 2 <= n1 <= 4:
+        return few
+    return many

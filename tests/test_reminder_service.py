@@ -7,7 +7,7 @@ from pathlib import Path
 from nimarita.config import Settings
 from datetime import timedelta
 
-from nimarita.domain.enums import ReminderOccurrenceStatus, ReminderRuleKind
+from nimarita.domain.enums import ReminderIntervalUnit, ReminderOccurrenceStatus, ReminderRuleKind
 from nimarita.domain.models import TelegramUserSnapshot
 from nimarita.infra import LinkBuilder, SQLiteDatabase
 from nimarita.repositories import PairingRepository, ReminderRepository, UserRepository
@@ -163,6 +163,59 @@ class ReminderServiceTestCase(unittest.IsolatedAsyncioTestCase):
             follow_up.occurrence.scheduled_at_utc,
             envelope.occurrence.scheduled_at_utc + timedelta(days=1),
         )
+
+    async def test_interval_reminder_schedules_next_occurrence_after_delivery(self) -> None:
+        envelope = await self.reminders.create_reminder(
+            telegram_user_id=101,
+            text='Напомни мне раз в две недели',
+            scheduled_for_local='2030-01-01T10:00',
+            timezone='Europe/Moscow',
+            kind=ReminderRuleKind.INTERVAL,
+            recurrence_every=2,
+            recurrence_unit=ReminderIntervalUnit.WEEK,
+        )
+
+        delivered = await self.reminders.mark_delivered(
+            occurrence_id=envelope.occurrence.id,
+            telegram_message_id=7777,
+        )
+        self.assertEqual(delivered.occurrence.status, ReminderOccurrenceStatus.DELIVERED)
+
+        scheduled = await self.reminders.list_pair_reminders(telegram_user_id=101, limit=10)
+        follow_up = next(item for item in scheduled if item.occurrence.id != envelope.occurrence.id)
+        self.assertEqual(follow_up.rule.kind, ReminderRuleKind.INTERVAL)
+        self.assertEqual(follow_up.rule.recurrence_every, 2)
+        self.assertEqual(follow_up.rule.recurrence_unit, ReminderIntervalUnit.WEEK)
+        self.assertEqual(
+            follow_up.occurrence.scheduled_at_utc,
+            envelope.occurrence.scheduled_at_utc + timedelta(weeks=2),
+        )
+
+    async def test_edit_reminder_updates_text_and_interval(self) -> None:
+        created = await self.reminders.create_reminder(
+            telegram_user_id=101,
+            text='Старый текст',
+            scheduled_for_local='2030-01-01T10:00',
+            timezone='Europe/Moscow',
+            kind=ReminderRuleKind.DAILY,
+        )
+
+        updated = await self.reminders.update_reminder(
+            telegram_user_id=101,
+            rule_id=created.rule.id,
+            text='Новый текст',
+            scheduled_for_local='2030-01-05T09:30',
+            timezone='Europe/Moscow',
+            kind=ReminderRuleKind.INTERVAL,
+            recurrence_every=3,
+            recurrence_unit=ReminderIntervalUnit.DAY,
+        )
+
+        self.assertEqual(updated.rule.kind, ReminderRuleKind.INTERVAL)
+        self.assertEqual(updated.rule.recurrence_every, 3)
+        self.assertEqual(updated.rule.recurrence_unit, ReminderIntervalUnit.DAY)
+        self.assertEqual(updated.occurrence.text, 'Новый текст')
+        self.assertEqual(updated.occurrence.status, ReminderOccurrenceStatus.SCHEDULED)
 
 
 if __name__ == "__main__":
