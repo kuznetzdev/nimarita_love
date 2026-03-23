@@ -324,6 +324,42 @@ class WebServerContractTestCase(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertIn(fragment, html)
 
+    async def test_frontend_html_exposes_mobile_safe_tab_labels(self) -> None:
+        html = self.web_server._get_frontend_html()
+
+        self.assertIsInstance(html, str)
+        assert isinstance(html, str)
+        self.assertEqual(html.count('class="tab-button-label"'), 3)
+        for fragment in (
+            'id="tab-pair"',
+            'id="tab-reminders"',
+            'id="tab-messages"',
+            '.tab-button-label {',
+            'overflow-wrap: anywhere;',
+            'word-break: break-word;',
+            'hyphens: auto;',
+        ):
+            self.assertIn(fragment, html)
+
+    async def test_frontend_html_exposes_responsive_field_and_toolbar_rules(self) -> None:
+        html = self.web_server._get_frontend_html()
+
+        self.assertIsInstance(html, str)
+        assert isinstance(html, str)
+        for fragment in (
+            '.field-flex-92 { flex: 0 0 92px; }',
+            '.field-flex-220 { flex: 1 1 220px; }',
+            '.field-flex-260 { flex: 1 1 260px; }',
+            '@media (max-width: 720px) {',
+            '.header-row > .toolbar,',
+            '.quiet-actions > *,',
+            '.actions,',
+            '.choice-row,',
+            '.copy-actions {',
+            'grid-template-columns: minmax(0, 1fr);',
+        ):
+            self.assertIn(fragment, html)
+
     async def test_frontend_html_exposes_clear_reminder_edit_copy_and_history_disclosure(self) -> None:
         html = self.web_server._get_frontend_html()
 
