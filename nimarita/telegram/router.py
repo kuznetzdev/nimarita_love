@@ -42,6 +42,8 @@ from nimarita.telegram.texts import (
     invalid_reminder_id_text,
     invalid_snooze_action_text,
     invite_created_text,
+    invite_cancelled_short_text,
+    invite_cancelled_text,
     invite_rejected_short_text,
     invite_preview_text,
     no_active_pair_text,
@@ -180,7 +182,7 @@ def build_router(
             raw_token = payload.removeprefix('invite_')
             try:
                 preview = await pairing_service.preview_invite(snapshot.telegram_user_id, raw_token)
-            except (AccessDeniedError, NotFoundError, ValidationError) as error:
+            except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
                 await _send_transient(message.chat.id, str(error), kind='invite-preview-error')
             else:
                 await message.answer(
@@ -345,6 +347,25 @@ def build_router(
             return
         await callback.answer(pair_link_ready_text())
         await callback.message.answer(invite_created_text(result.links), disable_web_page_preview=True)
+        await _render_dashboard(snapshot.telegram_user_id, callback.message.chat.id)
+
+    @router.callback_query(F.data == 'invite:cancel_outgoing')
+    async def callback_cancel_outgoing_invite(callback: CallbackQuery) -> None:
+        if callback.message is None:
+            await callback.answer()
+            return
+        try:
+            snapshot = await _register_user_from_callback(callback)
+            await pairing_service.cancel_outgoing_invite(snapshot.telegram_user_id)
+        except (AccessDeniedError, ConflictError, NotFoundError, ValidationError) as error:
+            await _handle_callback_error(callback, error)
+            return
+        await callback.answer(invite_cancelled_short_text())
+        await _send_transient(
+            callback.message.chat.id,
+            invite_cancelled_text(),
+            kind='invite-cancelled',
+        )
         await _render_dashboard(snapshot.telegram_user_id, callback.message.chat.id)
 
     @router.callback_query(F.data == 'pair:status')

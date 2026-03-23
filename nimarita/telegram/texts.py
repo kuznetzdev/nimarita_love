@@ -159,8 +159,9 @@ def reminder_action_snoozed_text(current: ReminderEnvelope, follow_up: ReminderE
 
 def care_delivery_text(envelope: CareEnvelope) -> str:
     return (
-        '💌 Сообщение заботы от партнёра\n\n'
+        '💌 Тёплое сообщение от партнёра\n\n'
         f'От: {envelope.sender.display_name}\n'
+        'Что пришло:\n'
         f'{envelope.dispatch.emoji} {envelope.dispatch.title}\n\n'
         f'{envelope.dispatch.body}'
     )
@@ -181,7 +182,8 @@ def care_failed_text(recipient: User, template_title: str, error_text: str) -> s
 def care_reply_applied_text(result: CareReplyResult) -> str:
     return (
         '💖 Ответ отправлен\n\n'
-        f'Для: {result.envelope.sender.display_name}\n'
+        f'Кому: {result.envelope.sender.display_name}\n'
+        'Что отправилось:\n'
         f'{result.reply.emoji} {result.reply.title}\n\n'
         f'{result.reply.body}'
     )
@@ -197,7 +199,8 @@ def care_hidden_text(envelope: CareEnvelope) -> str:
 
 def care_sender_response_text(result: CareReplyResult) -> str:
     return (
-        f'Есть ответ от {result.envelope.recipient.display_name} на твоё сообщение заботы.\n\n'
+        f'💬 Есть ответ от {result.envelope.recipient.display_name} на твоё сообщение заботы.\n\n'
+        'Что пришло в ответ:\n'
         f'{result.reply.emoji} {result.reply.title}\n'
         f'{result.reply.body}'
     )
@@ -270,6 +273,14 @@ def invite_rejected_short_text() -> str:
     return 'Приглашение отклонено'
 
 
+def invite_cancelled_text() -> str:
+    return 'Исходящее приглашение отменено. Когда будешь готов, можно выпустить новое.'
+
+
+def invite_cancelled_short_text() -> str:
+    return 'Приглашение отменено'
+
+
 def pair_closed_short_text() -> str:
     return 'Пара завершена'
 
@@ -312,4 +323,3 @@ def invalid_action_text() -> str:
 
 def card_hidden_short_text() -> str:
     return 'Карточка скрыта'
-

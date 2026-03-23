@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
-from nimarita.catalog import CARE_QUICK_REPLY_DEFINITIONS, CARE_TEMPLATE_DEFINITIONS
+from nimarita.catalog import CARE_QUICK_REPLY_DEFINITIONS, CARE_TEMPLATE_DEFINITIONS, get_quick_reply_pages
 from nimarita.config import Settings
 from nimarita.domain.enums import RelationshipRole
 from nimarita.domain.errors import ConflictError
@@ -12,6 +13,24 @@ from nimarita.domain.models import TelegramUserSnapshot
 from nimarita.infra import LinkBuilder, SQLiteDatabase
 from nimarita.repositories import CareRepository, PairingRepository, ReminderRepository, UserRepository
 from nimarita.services import CareService, PairingService, UserService
+from nimarita.telegram.texts import care_delivery_text, care_reply_applied_text, care_sender_response_text
+
+PARENTHETICAL_GENDER_FORM_RE = re.compile(r'[А-Яа-яЁё]+\([^)\s]{1,20}\)')
+NEUTRAL_GENDER_BREAKERS = (
+    'живой',
+    'живая',
+    'сытый',
+    'сытая',
+    'устал',
+    'устала',
+    'замёрз',
+    'замёрзла',
+    'загонял',
+    'загоняла',
+    'оставался',
+    'оставалась',
+)
+NEUTRAL_GENDER_BREAKER_PATTERNS = tuple(re.compile(rf'\b{re.escape(token)}\b') for token in NEUTRAL_GENDER_BREAKERS)
 
 
 class CareServiceTestCase(unittest.IsolatedAsyncioTestCase):
@@ -144,16 +163,65 @@ class CareServiceTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(item.category == 'man_to_woman' for item in woman_templates))
 
     async def test_care_templates_and_quick_replies_do_not_use_parenthetical_gender_forms(self) -> None:
-        banned_tokens = ('(а)', '(смог', '(знал', '(нужна)', '(важна)', '(пошла)', '(пришла)')
-        banned_neutral_phrases = ('всё одному', 'Ты мне очень нужен', 'Ты уже сделал много')
         for template in CARE_TEMPLATE_DEFINITIONS:
             haystack = f"{template.title} {template.body}"
-            self.assertFalse(any(token in haystack for token in banned_tokens), haystack)
-            if template.sender_role is RelationshipRole.UNSPECIFIED and template.recipient_role is RelationshipRole.UNSPECIFIED:
-                self.assertFalse(any(token in haystack for token in banned_neutral_phrases), haystack)
+            self.assertNotRegex(haystack, PARENTHETICAL_GENDER_FORM_RE)
         for reply in CARE_QUICK_REPLY_DEFINITIONS:
             haystack = f"{reply.title} {reply.body}"
-            self.assertFalse(any(token in haystack for token in banned_tokens), haystack)
+            self.assertNotRegex(haystack, PARENTHETICAL_GENDER_FORM_RE)
+
+    async def test_care_catalog_covers_support_warmth_care_and_short_messages(self) -> None:
+        categories = {template.category for template in CARE_TEMPLATE_DEFINITIONS}
+        self.assertTrue({'support', 'warmth', 'care', 'short'}.issubset(categories))
+
+    async def test_neutral_templates_and_replies_avoid_gendered_breakers(self) -> None:
+        for template in CARE_TEMPLATE_DEFINITIONS:
+            if template.recipient_role is not RelationshipRole.UNSPECIFIED:
+                continue
+            haystack = f'{template.title} {template.body}'.lower()
+            for pattern in NEUTRAL_GENDER_BREAKER_PATTERNS:
+                self.assertIsNone(pattern.search(haystack))
+
+        for reply in CARE_QUICK_REPLY_DEFINITIONS:
+            haystack = f'{reply.title} {reply.body}'.lower()
+            for pattern in NEUTRAL_GENDER_BREAKER_PATTERNS:
+                self.assertIsNone(pattern.search(haystack))
+
+    async def test_generic_quick_reply_first_page_stays_soft_for_custom_messages(self) -> None:
+        pages = get_quick_reply_pages('custom')
+        self.assertTrue(pages)
+        first_page_codes = [item.code for item in pages[0]]
+        self.assertEqual(first_page_codes, ['thanks_love', 'very_timely', 'became_quieter'])
+
+    async def test_telegram_care_texts_render_naturally_without_parenthetical_gender_forms(self) -> None:
+        await self.users.set_relationship_role(101, RelationshipRole.MAN)
+        await self.users.set_relationship_role(202, RelationshipRole.WOMAN)
+        templates = await self.care.list_templates(telegram_user_id=101)
+        chosen = next(item for item in templates if item.category == 'man_to_woman')
+
+        queued = await self.care.queue_template(telegram_user_id=101, template_code=chosen.template_code)
+        sent = await self.care.mark_sent(dispatch_id=queued.dispatch.id, telegram_message_id=777)
+        replied = await self.care.register_quick_reply(
+            telegram_user_id=202,
+            dispatch_id=sent.dispatch.id,
+            reply_code='thanks_love',
+        )
+
+        delivery_text = care_delivery_text(sent)
+        reply_applied_text = care_reply_applied_text(replied)
+        sender_response_text = care_sender_response_text(replied)
+
+        self.assertIn('Alice', delivery_text)
+        self.assertIn('Alice', reply_applied_text)
+        self.assertIn('Bob', sender_response_text)
+
+        for text in (
+            delivery_text,
+            reply_applied_text,
+            sender_response_text,
+        ):
+            self.assertNotRegex(text, PARENTHETICAL_GENDER_FORM_RE)
+            self.assertTrue(text.strip())
 
     async def test_custom_care_and_custom_reply_flow(self) -> None:
         sent = await self.care.queue_custom(
@@ -179,6 +247,26 @@ class CareServiceTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(replied.envelope.dispatch.status.value, 'responded')
         self.assertEqual(replied.reply.code, 'custom')
         self.assertEqual(replied.reply.title, 'Услышала тебя')
+
+
+    async def test_duplicate_custom_care_submit_reuses_recent_dispatch(self) -> None:
+        first = await self.care.queue_custom(
+            telegram_user_id=101,
+            title='Quiet nudge',
+            body='Drink some water and take a short pause.',
+            emoji='hug',
+        )
+        second = await self.care.queue_custom(
+            telegram_user_id=101,
+            title='Quiet nudge',
+            body='Drink some water and take a short pause.',
+            emoji='hug',
+        )
+
+        self.assertEqual(second.dispatch.id, first.dispatch.id)
+        history = await self.care.list_history(telegram_user_id=101)
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0].dispatch.id, first.dispatch.id)
 
 
 if __name__ == '__main__':

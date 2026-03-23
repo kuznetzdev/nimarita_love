@@ -5,6 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>Nimarita</title>
+    <link rel="icon" href="data:," />
     <script src="https://telegram.org/js/telegram-web-app.js?61"></script>
     <style>
       :root {
@@ -32,6 +33,7 @@
         --shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
         --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.05);
         --focus: 0 0 0 4px rgba(76, 139, 245, 0.18);
+        --app-height: 100dvh;
       }
 
       :root[data-scheme="dark"] {
@@ -93,8 +95,11 @@
 
       .app {
         position: relative;
-        min-height: 100vh;
-        padding: calc(16px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
+        min-height: var(--app-height);
+        padding-top: calc(16px + env(safe-area-inset-top));
+        padding-right: max(16px, calc(16px + env(safe-area-inset-right)));
+        padding-bottom: calc(28px + env(safe-area-inset-bottom));
+        padding-left: max(16px, calc(16px + env(safe-area-inset-left)));
       }
 
       .stack {
@@ -103,7 +108,7 @@
         width: min(100%, 760px);
         margin: 0 auto;
         display: grid;
-        gap: 14px;
+        gap: 16px;
       }
 
       .hero,
@@ -117,6 +122,39 @@
 
       .hero {
         background: linear-gradient(180deg, var(--accent-soft), transparent 100%), var(--card);
+        display: grid;
+        gap: 14px;
+      }
+
+      #loading,
+      #error,
+      #no-pair,
+      #outgoing,
+      #incoming,
+      #active {
+        order: 3;
+      }
+
+      #workspace-tabs {
+        order: 4;
+      }
+
+      #profile-card {
+        order: 5;
+      }
+
+      #reminders-card,
+      #care-browser-card {
+        order: 6;
+      }
+
+      #reminder-form-card,
+      #custom-care-card {
+        order: 7;
+      }
+
+      #care-history-card {
+        order: 8;
       }
 
       .notice-card {
@@ -165,6 +203,12 @@
       .badge {
         background: var(--accent-soft);
         color: var(--accent);
+      }
+
+      .hero-points {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
       }
 
       .pill {
@@ -249,7 +293,8 @@
       .grid,
       .actions,
       .list,
-      .profile-summary {
+      .profile-summary,
+      .panel-stack {
         display: grid;
         gap: 12px;
       }
@@ -271,10 +316,17 @@
         padding: 10px;
       }
 
+      .sticky-tabs {
+        position: sticky;
+        top: calc(10px + env(safe-area-inset-top));
+        z-index: 4;
+      }
+
       .tabs {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
+        align-items: stretch;
       }
 
       .tab-button {
@@ -352,6 +404,31 @@
       .small-button {
         min-height: 38px;
         padding: 10px 12px;
+      }
+
+      .quiet-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .text-button {
+        min-height: 28px;
+        padding: 4px 0;
+        border-color: transparent;
+        background: transparent;
+        color: var(--muted);
+        font-weight: 600;
+        box-shadow: none;
+      }
+
+      .text-button:hover {
+        color: var(--text);
+      }
+
+      .text-button:active {
+        transform: none;
       }
 
       .hidden-space {
@@ -472,7 +549,7 @@
       }
 
       .meta {
-        font-size: 12px;
+        font-size: 13px;
         line-height: 1.5;
         color: var(--muted);
       }
@@ -558,18 +635,51 @@
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       }
 
+      .copy-actions-primary {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
       .empty-state {
         color: var(--muted);
       }
 
+      .section-toggle {
+        min-width: 138px;
+      }
+
+      .pair-actions-panel,
+      .section-body {
+        display: grid;
+        gap: 12px;
+      }
+
+      .pair-actions-panel {
+        border-radius: 18px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        padding: 14px;
+      }
+
+      .helper-card {
+        border-radius: 18px;
+        border: 1px dashed var(--border-strong);
+        background: var(--surface);
+        padding: 14px;
+      }
+
+      .helper-card p {
+        color: var(--muted);
+      }
+
+      .section-header-copy {
+        display: grid;
+        gap: 4px;
+      }
+
       @media (max-width: 560px) {
         .app {
-          padding-left: 12px;
-          padding-right: 12px;
-        }
-
-        .tabs {
-          grid-template-columns: 1fr;
+          padding-right: max(12px, calc(12px + env(safe-area-inset-right)));
+          padding-left: max(12px, calc(12px + env(safe-area-inset-left)));
         }
 
         .hero,
@@ -586,11 +696,26 @@
           width: 100%;
         }
 
+        .tab-button {
+          min-height: 40px;
+          padding: 10px;
+          font-size: 14px;
+        }
+
         .toolbar > button,
         .actions > button,
         .copy-actions > button,
-        .quick-replies > button {
+        .quick-replies > button,
+        .section-header-copy + .toolbar > button {
           flex: 1 1 100%;
+        }
+
+        .section-toggle {
+          width: 100%;
+        }
+
+        .quiet-actions {
+          width: 100%;
         }
       }
     </style>
@@ -599,12 +724,17 @@
     <div class="app">
       <div class="stack">
         <section class="hero">
-          <span class="badge">Nimarita Love</span>
-          <h1>Наше пространство</h1>
+          <span class="badge">Nimarita Mini App</span>
+          <h1>Всё важное для пары</h1>
           <p>
-            Здесь можно подтвердить пару, настроить роли, отправлять напоминания и тёплые сообщения —
-            без лишних экранов и технического шума.
+            Подтверждайте пару, напоминайте друг другу о важном и отправляйте тёплые сообщения
+            без лишних шагов и длинных обходов.
           </p>
+          <div class="hero-points">
+            <span class="tiny-pill">Внутри Telegram</span>
+            <span class="tiny-pill">Минимум действий</span>
+            <span class="tiny-pill">Только для вас двоих</span>
+          </div>
         </section>
 
         <section id="notice" class="card notice-card hidden" aria-live="polite">
@@ -612,11 +742,10 @@
         </section>
 
         <section id="loading" class="card">
-          <span class="badge">Открываю приложение</span>
-          <h2>Подожди пару секунд</h2>
+          <span class="badge">Открываю пространство</span>
+          <h2>Ещё чуть-чуть</h2>
           <p>
-            Проверяю вход через Telegram и загружаю ваши данные. Если Railway только проснулся,
-            первый ответ может прийти немного позже.
+            Проверяю вход через Telegram и подготавливаю ваши данные.
           </p>
         </section>
 
@@ -631,10 +760,10 @@
         <section id="profile-card" class="card hidden">
           <div class="header-row">
             <div class="grid tight">
-              <h2>Кто есть кто</h2>
-              <p class="meta">Это помогает показывать понятные подсказки и обращаться друг к другу естественно.</p>
+              <h2>Как обращаться</h2>
+              <p class="meta">Это можно поменять в любой момент.</p>
             </div>
-            <span class="badge">Роли пары</span>
+            <span class="badge">Роли</span>
           </div>
           <div class="profile-summary">
             <p id="role-summary" class="strong"></p>
@@ -648,42 +777,38 @@
         </section>
 
         <section id="no-pair" class="card hidden">
-          <h2>Пары пока нет</h2>
+          <h2>Подключите пару</h2>
           <p>
-            Создай приглашение и отправь его партнёру. После подтверждения откроются общие напоминания
-            и сообщения.
+            Создай ссылку, отправь её партнёру и дождись подтверждения. После этого откроются
+            общие напоминания и сообщения.
           </p>
           <div class="actions">
             <button id="create-invite" class="primary">Создать приглашение</button>
           </div>
-          <div id="invite-links" class="linkbox hidden"></div>
         </section>
 
         <section id="outgoing" class="card hidden">
-          <h2>Приглашение готово</h2>
+          <h2>Ждём подтверждение</h2>
           <p id="outgoing-text"></p>
+          <div id="invite-links" class="linkbox hidden"></div>
           <div class="actions">
-            <button id="refresh-invite" class="secondary">Создать новое приглашение</button>
+            <button id="refresh-invite" class="secondary">Обновить ссылку</button>
+            <button id="cancel-invite" class="danger" type="button">Отменить приглашение</button>
           </div>
-          <div id="invite-links-repeat" class="linkbox hidden"></div>
         </section>
 
         <section id="incoming" class="card hidden">
-          <h2>Вас приглашают в пару</h2>
+          <h2>Подтвердить пару</h2>
           <p id="incoming-text"></p>
           <div class="actions">
-            <button id="accept-invite" class="primary">Подтвердить пару</button>
-            <button id="reject-invite" class="danger">Отклонить</button>
+            <button id="accept-invite" class="primary">Подтвердить</button>
+            <button id="reject-invite" class="danger">Пока нет</button>
           </div>
         </section>
 
         <section id="active" class="card hidden">
           <div class="header-row">
-            <span class="badge">Пара подтверждена</span>
-            <div class="toolbar">
-              <button id="refresh-state" class="secondary" type="button">Обновить</button>
-              <button id="unpair" class="danger" type="button">Разорвать пару</button>
-            </div>
+            <span class="badge">Пара активна</span>
           </div>
           <h2>Вы вместе</h2>
           <p id="active-text"></p>
@@ -691,9 +816,21 @@
             <span id="active-role-user" class="tiny-pill"></span>
             <span id="active-role-partner" class="tiny-pill"></span>
           </div>
+          <div class="actions">
+            <button id="jump-reminders" class="primary" type="button">Новое напоминание</button>
+            <button id="jump-messages" class="secondary" type="button">Тёплое сообщение</button>
+          </div>
+          <div id="active-secondary-actions" class="quiet-actions">
+            <button id="refresh-state" class="ghost text-button small-button" type="button">Обновить</button>
+            <button id="toggle-pair-actions" class="ghost text-button small-button" type="button" aria-expanded="false">Управление парой</button>
+          </div>
+          <div id="pair-actions-panel" class="pair-actions-panel hidden">
+            <p class="meta">Здесь только редкие действия. Основной поток остаётся выше.</p>
+            <button id="unpair" class="danger" type="button">Завершить пару</button>
+          </div>
         </section>
 
-        <section id="workspace-tabs" class="card hidden tabs-card">
+        <section id="workspace-tabs" class="card hidden tabs-card sticky-tabs">
           <div class="tabs" role="tablist" aria-label="Разделы">
             <button id="tab-pair" class="tab-button is-active" type="button" role="tab" aria-selected="true">Пара</button>
             <button id="tab-reminders" class="tab-button" type="button" role="tab" aria-selected="false">Напоминания</button>
@@ -703,13 +840,13 @@
 
         <section id="reminder-form-card" class="card hidden">
           <div class="header-row">
-            <div class="grid tight">
+            <div class="section-header-copy">
               <h2 id="reminder-form-title">Новое напоминание</h2>
               <p id="reminder-form-hint" class="meta">Отправится партнёру в выбранное время.</p>
             </div>
-            <span class="meta">Только для вашей пары</span>
+            <button id="toggle-reminder-form" class="ghost small-button section-toggle" type="button" aria-expanded="false">Открыть форму</button>
           </div>
-          <div class="grid">
+          <div id="reminder-form-body" class="section-body hidden">
             <label>
               Текст напоминания
               <textarea id="reminder-text" placeholder="Например: поешь, пожалуйста, и возьми себе паузу"></textarea>
@@ -748,44 +885,63 @@
             <p id="reminder-meta" class="meta"></p>
             <div class="actions">
               <button id="create-reminder" class="primary" type="button">Сохранить напоминание</button>
-              <button id="cancel-reminder-edit" class="ghost hidden" type="button">Не менять</button>
+              <button id="cancel-reminder-edit" class="ghost hidden" type="button">Отменить редактирование</button>
             </div>
           </div>
         </section>
 
         <section id="reminders-card" class="card hidden">
           <div class="header-row">
-            <div class="grid tight">
+            <div class="section-header-copy">
               <h2>Напоминания</h2>
-              <p class="meta">Одна карточка — одно напоминание. История уходит внутрь карточки.</p>
+              <p class="meta">Здесь собираются ближайшие и недавние отправки.</p>
             </div>
-            <span id="reminders-counter" class="meta"></span>
+            <div class="toolbar">
+              <span id="reminders-counter" class="meta"></span>
+              <button id="open-reminder-form" class="primary small-button" type="button">Новое</button>
+            </div>
           </div>
-          <div id="empty-reminders" class="empty-state">Пока напоминаний нет.</div>
+          <div id="empty-reminders" class="empty-state">Пока пусто. Добавь первое напоминание.</div>
           <div id="reminder-list" class="list"></div>
           <button id="reminders-more" class="secondary hidden" type="button">Показать ещё</button>
         </section>
 
         <section id="care-browser-card" class="card hidden">
           <div class="header-row">
-            <h2>Тёплые сообщения</h2>
+            <div class="section-header-copy">
+              <h2>Тёплые сообщения</h2>
+              <p class="meta">Быстрый способ поддержать партнёра одним нажатием.</p>
+            </div>
             <span id="care-counter" class="meta"></span>
           </div>
-          <p>Выбери готовый вариант или отправь случайное сообщение одним нажатием.</p>
+          <div class="helper-card">
+            <p><span class="strong">Кто отправляет:</span> ты</p>
+            <p><span class="strong">Кому уйдёт:</span> <span id="care-browser-recipient">партнёру</span></p>
+            <p><span class="strong">Тон сообщения:</span> на каждой карточке ниже есть явная подсказка.</p>
+            <p><span class="strong">Что сейчас отправится:</span> в карточке ниже всегда показан точный текст.</p>
+          </div>
           <div class="toolbar">
             <select id="care-category"></select>
-            <button id="care-random" class="secondary" type="button">Случайное сообщение</button>
+            <button id="care-random" class="secondary" type="button">Случайное</button>
           </div>
           <div class="divider"></div>
           <div id="care-template-list" class="list"></div>
         </section>
 
         <section id="custom-care-card" class="card hidden">
-          <div class="grid tight">
-            <h2>Своё сообщение</h2>
-            <p class="meta">Можно написать что-то совсем по-своему.</p>
+          <div class="header-row">
+            <div class="section-header-copy">
+              <h2>Своё сообщение</h2>
+              <p class="meta">Если хочешь написать по-своему.</p>
+            </div>
+            <button id="toggle-custom-care" class="ghost small-button section-toggle" type="button" aria-expanded="false">Открыть форму</button>
           </div>
-          <div class="grid">
+          <div id="custom-care-body-wrap" class="section-body hidden">
+            <div class="helper-card">
+              <p><span class="strong">Кто отправляет:</span> ты</p>
+              <p><span class="strong">Кому уйдёт:</span> <span id="custom-care-recipient">партнёру</span></p>
+              <p><span class="strong">Тон сообщения:</span> <span id="custom-care-audience">нейтральный текст</span> в твоей собственной формулировке.</p>
+            </div>
             <div class="split">
               <label style="flex: 0 0 92px;">
                 Эмодзи
@@ -800,6 +956,11 @@
               Текст сообщения
               <textarea id="custom-care-body" placeholder="Напиши своё тёплое сообщение партнёру"></textarea>
             </label>
+            <div class="reply-box">
+              <div class="strong">Что сейчас отправится</div>
+              <div id="custom-care-preview-title" class="history-title">💌 Тёплое сообщение</div>
+              <div id="custom-care-preview-body" class="reply-body">Напиши своё тёплое сообщение партнёру.</div>
+            </div>
             <div class="actions">
               <button id="send-custom-care" class="primary" type="button">Отправить сообщение</button>
             </div>
@@ -808,11 +969,19 @@
 
         <section id="care-history-card" class="card hidden">
           <div class="header-row">
-            <h2>Последние сообщения</h2>
-            <button id="care-history-refresh" class="secondary" type="button">Обновить</button>
+            <div class="section-header-copy">
+              <h2>Последние сообщения</h2>
+              <p class="meta">Здесь можно посмотреть ответ или быстро ответить в ответ.</p>
+            </div>
+            <div class="toolbar">
+              <button id="toggle-care-history" class="ghost small-button section-toggle" type="button" aria-expanded="false">Показать</button>
+              <button id="care-history-refresh" class="secondary hidden-space small-button" type="button">Обновить</button>
+            </div>
           </div>
-          <div id="empty-care-history" class="empty-state">История пока пустая.</div>
-          <div id="care-history-list" class="list"></div>
+          <div id="care-history-body" class="section-body hidden">
+            <div id="empty-care-history" class="empty-state">Пока ничего нет.</div>
+            <div id="care-history-list" class="list"></div>
+          </div>
         </section>
       </div>
     </div>
@@ -841,8 +1010,13 @@ const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
         activeTab: 'pair',
         reminderFormMode: 'create',
         reminderEditingRuleId: null,
+        reminderFormExpanded: false,
         reminderHistoryExpanded: {},
+        reminderHistoryShowAll: {},
         remindersExpanded: false,
+        pairActionsExpanded: false,
+        customCareExpanded: false,
+        careHistoryExpanded: false,
         noticeTimer: null,
         autoRefreshTimer: null,
       };
@@ -874,16 +1048,22 @@ const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
         tabReminders: document.getElementById('tab-reminders'),
         tabMessages: document.getElementById('tab-messages'),
         inviteLinks: document.getElementById('invite-links'),
-        inviteLinksRepeat: document.getElementById('invite-links-repeat'),
         createInvite: document.getElementById('create-invite'),
         refreshInvite: document.getElementById('refresh-invite'),
+        cancelInvite: document.getElementById('cancel-invite'),
         acceptInvite: document.getElementById('accept-invite'),
         rejectInvite: document.getElementById('reject-invite'),
         refreshState: document.getElementById('refresh-state'),
+        jumpReminders: document.getElementById('jump-reminders'),
+        jumpMessages: document.getElementById('jump-messages'),
+        togglePairActions: document.getElementById('toggle-pair-actions'),
+        pairActionsPanel: document.getElementById('pair-actions-panel'),
         unpair: document.getElementById('unpair'),
         reminderFormCard: document.getElementById('reminder-form-card'),
         reminderFormTitle: document.getElementById('reminder-form-title'),
         reminderFormHint: document.getElementById('reminder-form-hint'),
+        reminderFormBody: document.getElementById('reminder-form-body'),
+        toggleReminderForm: document.getElementById('toggle-reminder-form'),
         reminderText: document.getElementById('reminder-text'),
         reminderDatetime: document.getElementById('reminder-datetime'),
         reminderKind: document.getElementById('reminder-kind'),
@@ -895,20 +1075,30 @@ const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
         cancelReminderEdit: document.getElementById('cancel-reminder-edit'),
         remindersCard: document.getElementById('reminders-card'),
         remindersCounter: document.getElementById('reminders-counter'),
+        openReminderForm: document.getElementById('open-reminder-form'),
         emptyReminders: document.getElementById('empty-reminders'),
         reminderList: document.getElementById('reminder-list'),
         remindersMore: document.getElementById('reminders-more'),
         careBrowserCard: document.getElementById('care-browser-card'),
+        careBrowserRecipient: document.getElementById('care-browser-recipient'),
         careCounter: document.getElementById('care-counter'),
         careCategory: document.getElementById('care-category'),
         careRandom: document.getElementById('care-random'),
         careTemplateList: document.getElementById('care-template-list'),
         customCareCard: document.getElementById('custom-care-card'),
+        toggleCustomCare: document.getElementById('toggle-custom-care'),
+        customCareBodyWrap: document.getElementById('custom-care-body-wrap'),
+        customCareRecipient: document.getElementById('custom-care-recipient'),
+        customCareAudience: document.getElementById('custom-care-audience'),
         customCareEmoji: document.getElementById('custom-care-emoji'),
         customCareTitle: document.getElementById('custom-care-title'),
         customCareBody: document.getElementById('custom-care-body'),
+        customCarePreviewTitle: document.getElementById('custom-care-preview-title'),
+        customCarePreviewBody: document.getElementById('custom-care-preview-body'),
         sendCustomCare: document.getElementById('send-custom-care'),
         careHistoryCard: document.getElementById('care-history-card'),
+        toggleCareHistory: document.getElementById('toggle-care-history'),
+        careHistoryBody: document.getElementById('care-history-body'),
         careHistoryRefresh: document.getElementById('care-history-refresh'),
         emptyCareHistory: document.getElementById('empty-care-history'),
         careHistoryList: document.getElementById('care-history-list'),
@@ -924,21 +1114,21 @@ const RAW_API_BASE = 'PLACEHOLDER_API_BASE';
       };
 
       const reminderStatusLabels = {
-        scheduled: 'Запланировано',
-        processing: 'Отправляется',
+        scheduled: 'Скоро',
+        processing: 'Отправляем',
         delivered: 'Доставлено',
-        acknowledged: 'Подтверждено',
-        failed: 'Ошибка',
-        cancelled: 'Отменено',
-        pending: 'Ожидает',
+        acknowledged: 'Получено',
+        failed: 'Не доставлено',
+        cancelled: 'Остановлено',
+        pending: 'Скоро',
       };
 
       const careStatusLabels = {
-        pending: 'В очереди',
-        processing: 'Отправляется',
+        pending: 'Скоро',
+        processing: 'Отправляем',
         sent: 'Отправлено',
         responded: 'Есть ответ',
-        failed: 'Ошибка',
+        failed: 'Не отправлено',
       };
 
       const replySuggestions = [
@@ -1076,7 +1266,11 @@ function applyTheme() {
       tg?.setHeaderColor?.('bg_color');
     } catch (__error) {}
   }
-}
+  }
+
+      function updateViewportHeight() {
+        document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+      }
 
       function currentUser() {
         return state.currentState?.user || null;
@@ -1090,6 +1284,16 @@ function applyTheme() {
         return user?.relationship_role_label || 'не указано';
       }
 
+      function partnerDisplayName(fallback = 'партнёру') {
+        return currentPartner()?.display_name || fallback;
+      }
+
+      function careAudienceHint(roleValue) {
+        if (roleValue === 'woman') return 'адресовано девушке';
+        if (roleValue === 'man') return 'адресовано парню';
+        return 'нейтральный текст';
+      }
+
       function showPrimary(key) {
         Object.entries(sectionMap).forEach(([name, node]) => {
           node.classList.toggle('hidden', name !== key);
@@ -1100,14 +1304,68 @@ function applyTheme() {
         el.profileCard.classList.toggle('hidden', !visible);
       }
 
+      function updatePairActionsVisibility() {
+        const expanded = !!state.pairActionsExpanded;
+        el.pairActionsPanel.classList.toggle('hidden', !expanded);
+        el.togglePairActions.textContent = expanded ? 'Скрыть редкие действия' : 'Управление парой';
+        el.togglePairActions.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      }
+
+      function shouldShowReminderForm() {
+        return state.reminderFormMode === 'edit' || state.reminderFormExpanded || buildReminderGroups(state.reminders).length === 0;
+      }
+
+      function updateReminderComposerVisibility() {
+        const expanded = shouldShowReminderForm();
+        el.reminderFormBody.classList.toggle('hidden', !expanded);
+        el.toggleReminderForm.textContent = expanded ? 'Скрыть форму' : 'Открыть форму';
+        el.toggleReminderForm.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      }
+
+      function setReminderFormExpanded(expanded, { scroll = false } = {}) {
+        state.reminderFormExpanded = expanded;
+        updateReminderComposerVisibility();
+        if (shouldShowReminderForm() && scroll) {
+          el.reminderFormCard.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        }
+      }
+
+      function updateCustomCareVisibility() {
+        const expanded = !!state.customCareExpanded;
+        el.customCareBodyWrap.classList.toggle('hidden', !expanded);
+        el.toggleCustomCare.textContent = expanded ? 'Скрыть форму' : 'Открыть форму';
+        el.toggleCustomCare.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (expanded) {
+          updateCustomCarePreview();
+        }
+      }
+
+      function hasActionableCareReply(history = state.careHistory) {
+        return (Array.isArray(history) ? history : []).some((item) =>
+          item.direction === 'inbound' && item.status === 'sent' && !item.response_body
+        );
+      }
+
+      function updateCareHistoryVisibility() {
+        const expanded = !!state.careHistoryExpanded;
+        const count = Array.isArray(state.careHistory) ? state.careHistory.length : 0;
+        el.careHistoryBody.classList.toggle('hidden', !expanded);
+        el.careHistoryRefresh.classList.toggle('hidden-space', !expanded);
+        el.toggleCareHistory.textContent = expanded
+          ? 'Скрыть историю'
+          : count > 0 ? `Показать (${count})` : 'Показать';
+        el.toggleCareHistory.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      }
+
       function updateReminderModeUI() {
         const editing = state.reminderFormMode === 'edit';
-        el.reminderFormTitle.textContent = editing ? 'Редактирование напоминания' : 'Новое напоминание';
+        el.reminderFormTitle.textContent = editing ? 'Изменить напоминание' : 'Новое напоминание';
         el.reminderFormHint.textContent = editing
-          ? 'Изменения применятся к ближайшей активной отправке и будущему расписанию.'
-          : 'Отправится партнёру в выбранное время.';
+          ? 'Мы обновим ближайшую отправку и следующие повторы.'
+          : 'Партнёр получит его в выбранное время.';
         el.createReminder.textContent = editing ? 'Сохранить изменения' : 'Сохранить напоминание';
         el.cancelReminderEdit.classList.toggle('hidden', !editing);
+        updateReminderComposerVisibility();
       }
 
       function resetReminderForm({ keepText = false } = {}) {
@@ -1120,6 +1378,7 @@ function applyTheme() {
         el.reminderKind.value = 'one_time';
         el.reminderIntervalEvery.value = '2';
         el.reminderIntervalUnit.value = 'day';
+        state.reminderFormExpanded = buildReminderGroups(state.reminders).length === 0;
         updateReminderRecurrenceControls();
         updateReminderModeUI();
       }
@@ -1142,6 +1401,16 @@ function applyTheme() {
         el.careBrowserCard.classList.toggle('hidden', !tabVisible || state.activeTab !== 'messages');
         el.customCareCard.classList.toggle('hidden', !tabVisible || state.activeTab !== 'messages');
         el.careHistoryCard.classList.toggle('hidden', !tabVisible || state.activeTab !== 'messages');
+        if (tabVisible && state.activeTab === 'pair') {
+          updatePairActionsVisibility();
+        }
+        if (tabVisible && state.activeTab === 'reminders') {
+          updateReminderComposerVisibility();
+        }
+        if (tabVisible && state.activeTab === 'messages') {
+          updateCustomCareVisibility();
+          updateCareHistoryVisibility();
+        }
       }
 
       function setActiveBlocksVisible(visible) {
@@ -1313,6 +1582,16 @@ function openExternalLink(url) {
   window.open(url, '_blank', 'noopener');
 }
 
+      function clearInviteLinks() {
+  [el.inviteLinks].forEach((container) => {
+    if (!container) {
+      return;
+    }
+    container.innerHTML = '';
+    container.classList.add('hidden');
+  });
+}
+
       function renderInviteLinks(container, invite) {
   if (!invite || !container) {
     return;
@@ -1325,18 +1604,22 @@ function openExternalLink(url) {
 
   const title = document.createElement('div');
   title.className = 'strong';
-  title.textContent = 'Приглашение готово';
+  title.textContent = 'Ссылка готова';
 
   const expires = document.createElement('div');
   expires.className = 'meta';
   expires.textContent = `Действует до ${formatDateTime(invite.expires_at)}.`;
 
+  const helper = document.createElement('div');
+  helper.className = 'meta';
+  helper.textContent = 'Обычно достаточно скопировать ссылку и переслать её партнёру.';
+
   const value = document.createElement('div');
-  value.className = 'copy-value';
+  value.className = 'copy-value hidden';
   value.textContent = primaryLink;
 
-  const actions = document.createElement('div');
-  actions.className = 'copy-actions';
+  const primaryActions = document.createElement('div');
+  primaryActions.className = 'copy-actions copy-actions-primary';
 
   const copyButton = document.createElement('button');
   copyButton.type = 'button';
@@ -1346,14 +1629,40 @@ function openExternalLink(url) {
     copyText(primaryLink).catch(() => {});
   });
 
+  const toggleActionsButton = document.createElement('button');
+  toggleActionsButton.id = 'toggle-invite-actions';
+  toggleActionsButton.type = 'button';
+  toggleActionsButton.className = 'ghost text-button small-button';
+  toggleActionsButton.textContent = 'Другие способы';
+
+  const extraActions = document.createElement('div');
+  extraActions.className = 'copy-actions hidden';
+
   const openButton = document.createElement('button');
   openButton.type = 'button';
   openButton.className = 'secondary';
   openButton.textContent = 'Открыть ссылку';
   openButton.addEventListener('click', () => openExternalLink(primaryLink));
 
-  actions.append(copyButton, openButton);
-  container.append(title, expires, value, actions);
+  const revealButton = document.createElement('button');
+  revealButton.type = 'button';
+  revealButton.className = 'ghost';
+  revealButton.textContent = 'Показать ссылку';
+  revealButton.addEventListener('click', () => {
+    const nextHidden = !value.classList.contains('hidden');
+    value.classList.toggle('hidden', nextHidden);
+    revealButton.textContent = nextHidden ? 'Показать ссылку' : 'Скрыть ссылку';
+  });
+
+  toggleActionsButton.addEventListener('click', () => {
+    const expanded = extraActions.classList.contains('hidden');
+    extraActions.classList.toggle('hidden', !expanded);
+    toggleActionsButton.textContent = expanded ? 'Скрыть другие способы' : 'Другие способы';
+  });
+
+  primaryActions.append(copyButton);
+  extraActions.append(openButton, revealButton);
+  container.append(title, expires, helper, value, primaryActions, toggleActionsButton, extraActions);
 
   if (backupLink) {
     const fallbackMeta = document.createElement('div');
@@ -1388,19 +1697,43 @@ function openExternalLink(url) {
     return;
   }
   setProfileVisible(true);
-  el.roleSummary.textContent = `Сейчас у тебя выбрано: ${roleLabel(user)}.`;
+  el.roleSummary.textContent = `Твоя роль: ${roleLabel(user)}.`;
   el.partnerRoleSummary.textContent = partner
-    ? `У ${partner.display_name} сейчас указано: ${roleLabel(partner)}.`
-    : 'После подтверждения пары здесь появится роль партнёра.';
+    ? `Роль ${partner.display_name}: ${roleLabel(partner)}.`
+    : 'Роль партнёра появится после подтверждения пары.';
   updateRoleButtons(user.relationship_role || 'unspecified');
 }
 
 function renderActiveHeader(user, partner) {
   if (!user || !partner) return;
-  el.activeText.textContent = `${partner.display_name} — твой подтверждённый партнёр. Здесь можно бережно напоминать, поддерживать и отвечать друг другу.`;
+  el.activeText.textContent = `${partner.display_name} рядом. Ты отправляешь напоминания и тёплые сообщения отсюда, а ответы возвращаются в эту же историю.`;
   el.activeRoleUser.textContent = `Ты: ${roleLabel(user)}`;
   el.activeRolePartner.textContent = `${partner.display_name}: ${roleLabel(partner)}`;
 }
+
+      function updateCareAudienceLabels() {
+        const partner = currentPartner();
+        const recipientName = partner?.display_name || 'партнёру';
+        const audience = careAudienceHint(partner?.relationship_role || 'unspecified');
+        if (el.careBrowserRecipient) {
+          el.careBrowserRecipient.textContent = recipientName;
+        }
+        if (el.customCareRecipient) {
+          el.customCareRecipient.textContent = recipientName;
+        }
+        if (el.customCareAudience) {
+          el.customCareAudience.textContent = audience;
+        }
+      }
+
+      function updateCustomCarePreview() {
+        updateCareAudienceLabels();
+        const emoji = el.customCareEmoji.value.trim() || '💌';
+        const title = el.customCareTitle.value.trim() || 'Тёплое сообщение';
+        const body = el.customCareBody.value.trim() || 'Напиши своё тёплое сообщение партнёру.';
+        el.customCarePreviewTitle.textContent = `${emoji} ${title}`;
+        el.customCarePreviewBody.textContent = body;
+      }
 
       function recurrenceUnitLabel(unit, every) {
         const value = Number(every || 1);
@@ -1429,12 +1762,12 @@ function renderActiveHeader(user, partner) {
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Moscow';
         const scheduleHint = el.reminderDatetime.value ? `Первый запуск: ${formatDateTime(new Date(el.reminderDatetime.value))}.` : 'Выбери дату и время первого запуска.';
         if (!isInterval) {
-          el.reminderMeta.textContent = `${scheduleHint} Часовой пояс: ${timezone}.`;
+          el.reminderMeta.textContent = `${scheduleHint} Время телефона: ${timezone}.`;
           return;
         }
         const every = Math.max(1, Number(el.reminderIntervalEvery.value || 1));
         const unit = el.reminderIntervalUnit.value || 'day';
-        el.reminderMeta.textContent = `${scheduleHint} Затем повторять каждые ${recurrenceUnitLabel(unit, every)}. Часовой пояс: ${timezone}.`;
+        el.reminderMeta.textContent = `${scheduleHint} Потом повторять каждые ${recurrenceUnitLabel(unit, every)}. Время телефона: ${timezone}.`;
       }
 
       function reminderApiPayload() {
@@ -1477,6 +1810,7 @@ function renderActiveHeader(user, partner) {
         if (!current) return;
         state.reminderFormMode = 'edit';
         state.reminderEditingRuleId = current.rule_id;
+        state.reminderFormExpanded = true;
         el.reminderText.value = current.text || '';
         el.reminderDatetime.value = toDatetimeLocalValue(current.scheduled_at_utc || current.origin_scheduled_at_utc);
         el.reminderKind.value = current.kind || 'one_time';
@@ -1485,7 +1819,7 @@ function renderActiveHeader(user, partner) {
         updateReminderModeUI();
         updateReminderRecurrenceControls();
         setActiveTab('reminders');
-        el.reminderFormCard.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        setReminderFormExpanded(true, { scroll: true });
       }
 
       function toDatetimeLocalValue(value) {
@@ -1497,8 +1831,51 @@ function renderActiveHeader(user, partner) {
       }
 
       function toggleReminderHistory(ruleId) {
-        state.reminderHistoryExpanded[ruleId] = !state.reminderHistoryExpanded[ruleId];
+        const nextExpanded = !state.reminderHistoryExpanded[ruleId];
+        state.reminderHistoryExpanded[ruleId] = nextExpanded;
+        if (!nextExpanded) {
+          state.reminderHistoryShowAll[ruleId] = false;
+        }
         renderReminders(state.reminders || []);
+      }
+
+      function toggleReminderHistoryDetails(ruleId) {
+        state.reminderHistoryShowAll[ruleId] = !state.reminderHistoryShowAll[ruleId];
+        renderReminders(state.reminders || []);
+      }
+
+      function reminderScheduleLabel(item) {
+        if (!item || item.kind === 'one_time') {
+          return 'Регулярность: один раз';
+        }
+        const label = String(item.kind_label || 'по расписанию').toLowerCase();
+        return `Регулярность: ${label}`;
+      }
+
+      function reminderHistoryButtonLabel(total, expanded) {
+        return expanded ? 'Скрыть историю' : `История (${total})`;
+      }
+
+      function reminderHistoryEntries(group, ruleId) {
+        const entries = Array.isArray(group?.items) ? group.items : [];
+        if (entries.length <= 3 || state.reminderHistoryShowAll[ruleId]) {
+          return entries;
+        }
+        return entries.slice(0, 3);
+      }
+
+      function reminderHistoryDisclosureLabel(ruleId) {
+        return state.reminderHistoryShowAll[ruleId] ? 'Показать меньше' : 'Показать всю историю';
+      }
+
+      function reminderHistorySummary(group, ruleId) {
+        const total = Array.isArray(group?.items) ? group.items.length : 0;
+        const visible = reminderHistoryEntries(group, ruleId).length;
+        const hiddenCount = Math.max(0, total - visible);
+        if (hiddenCount <= 0) {
+          return '';
+        }
+        return `Ещё ${hiddenCount} ${pluralRu(hiddenCount, 'событие', 'события', 'событий')}`;
       }
 
       function filteredTemplates() {
@@ -1539,15 +1916,16 @@ function renderActiveHeader(user, partner) {
 
       function renderCareTemplates(templates) {
         state.careTemplates = Array.isArray(templates) ? templates : [];
+        updateCareAudienceLabels();
         renderCareCategories(state.careTemplates);
         const items = filteredTemplates();
-        el.careCounter.textContent = `${items.length} вариантов`;
+        el.careCounter.textContent = items.length ? `${items.length} готовых` : 'Нет готовых';
         el.careTemplateList.innerHTML = '';
 
         if (!items.length) {
           const empty = document.createElement('div');
           empty.className = 'empty-state';
-          empty.textContent = 'Подходящих сообщений пока нет. Укажи роли или попробуй другую категорию.';
+          empty.textContent = 'Пока ничего не подобралось. Попробуй другую категорию.';
           el.careTemplateList.appendChild(empty);
           return;
         }
@@ -1591,7 +1969,19 @@ function renderActiveHeader(user, partner) {
             const body = document.createElement('div');
             body.className = 'template-body';
             body.textContent = item.body;
-            card.append(top, body);
+            const route = document.createElement('div');
+            route.className = 'meta';
+            route.textContent = `Кому уйдёт: ${partnerDisplayName()} • ${item.recipient_hint || 'нейтральный текст'}`;
+
+            const tone = document.createElement('div');
+            tone.className = 'meta';
+            tone.textContent = `Тон сообщения: ${item.tone_label || 'тёплое сообщение'}`;
+
+            const preview = document.createElement('div');
+            preview.className = 'strong';
+            preview.textContent = 'Что сейчас отправится';
+
+            card.append(top, route, tone, preview, body);
             wrapper.appendChild(card);
           });
 
@@ -1608,6 +1998,7 @@ function renderActiveHeader(user, partner) {
         el.emptyReminders.classList.toggle('hidden', groups.length > 0);
         el.remindersMore.classList.toggle('hidden', groups.length <= 4);
         el.remindersMore.textContent = state.remindersExpanded ? 'Свернуть список' : 'Показать ещё';
+        updateReminderComposerVisibility();
 
         visibleGroups.forEach((group) => {
           const item = group.primary;
@@ -1636,16 +2027,14 @@ function renderActiveHeader(user, partner) {
           const meta = document.createElement('div');
           meta.className = 'meta';
           if (group.editableOccurrence) {
-            meta.textContent = `Ближайшая отправка: ${formatDateTime(group.editableOccurrence.scheduled_at_utc)} · для ${item.recipient.display_name}`;
+            meta.textContent = `Ближайшая отправка: ${formatDateTime(group.editableOccurrence.scheduled_at_utc)}`;
           } else {
-            meta.textContent = `Последнее событие: ${formatDateTime(item.scheduled_at_utc)} · для ${item.recipient.display_name}`;
+            meta.textContent = `Последнее событие: ${formatDateTime(item.scheduled_at_utc)}`;
           }
 
           const cycle = document.createElement('div');
           cycle.className = 'meta';
-          cycle.textContent = item.kind === 'one_time'
-            ? 'Без повторов'
-            : `Регулярность: ${item.kind_label.toLowerCase()}`;
+          cycle.textContent = reminderScheduleLabel(item);
 
           summary.append(body, meta, cycle);
           card.append(top, summary);
@@ -1681,7 +2070,7 @@ function renderActiveHeader(user, partner) {
             cancel.addEventListener('click', () => {
               withButtonBusy(cancel, 'Останавливаю…', async () => {
                 await cancelReminder(item.rule_id);
-              }).catch((error) => showError(error.message || 'Не удалось отменить напоминание.'));
+              }).catch((error) => showError(error.message || 'Не удалось остановить напоминание.'));
             });
             actions.appendChild(cancel);
           }
@@ -1691,7 +2080,7 @@ function renderActiveHeader(user, partner) {
             toggle.type = 'button';
             toggle.className = 'ghost small-button';
             const expanded = !!state.reminderHistoryExpanded[item.rule_id];
-            toggle.textContent = expanded ? 'Скрыть историю' : `История (${group.items.length})`;
+            toggle.textContent = reminderHistoryButtonLabel(group.items.length, expanded);
             toggle.addEventListener('click', () => toggleReminderHistory(item.rule_id));
             actions.appendChild(toggle);
           }
@@ -1703,7 +2092,7 @@ function renderActiveHeader(user, partner) {
           if (state.reminderHistoryExpanded[item.rule_id]) {
             const history = document.createElement('div');
             history.className = 'reminder-history';
-            group.items.forEach((entry, index) => {
+            reminderHistoryEntries(group, item.rule_id).forEach((entry, index) => {
               const row = document.createElement('div');
               row.className = `reminder-history-entry ${index === 0 ? 'is-current' : ''}`;
               const rowTitle = document.createElement('div');
@@ -1727,6 +2116,23 @@ function renderActiveHeader(user, partner) {
               }
               history.appendChild(row);
             });
+            if (group.items.length > 3) {
+              const disclosure = document.createElement('div');
+              disclosure.className = 'reminder-actions-inline';
+              const more = document.createElement('button');
+              more.type = 'button';
+              more.className = 'ghost small-button';
+              more.textContent = reminderHistoryDisclosureLabel(item.rule_id);
+              more.addEventListener('click', () => toggleReminderHistoryDetails(item.rule_id));
+              disclosure.appendChild(more);
+              if (reminderHistorySummary(group, item.rule_id)) {
+                const hint = document.createElement('div');
+                hint.className = 'meta';
+                hint.textContent = reminderHistorySummary(group, item.rule_id);
+                disclosure.appendChild(hint);
+              }
+              history.appendChild(disclosure);
+            }
             card.appendChild(history);
           }
 
@@ -1734,14 +2140,12 @@ function renderActiveHeader(user, partner) {
         });
       }
 
-      async function sendQuickReply(dispatchId, suggestion) {
-        const result = await api('/api/v1/care/respond-custom', {
+      async function sendQuickReply(dispatchId, replyCode) {
+        const result = await api('/api/v1/care/respond', {
           method: 'POST',
           body: JSON.stringify({
             dispatch_id: dispatchId,
-            title: suggestion.title,
-            message: suggestion.message,
-            emoji: suggestion.emoji,
+            reply_code: replyCode,
           }),
         });
         renderCareHistory(result.history || []);
@@ -1759,14 +2163,14 @@ function renderActiveHeader(user, partner) {
             method: 'POST',
             body: JSON.stringify({
               dispatch_id: dispatchId,
-              title: titleInput.value.trim() || 'Мой ответ',
+              title: titleInput.value.trim() || 'Тёплый ответ',
               message: bodyInput.value.trim(),
               emoji: emojiInput.value.trim() || '💗',
             }),
           })
         );
         bodyInput.value = '';
-        titleInput.value = 'Мой ответ';
+        titleInput.value = 'Тёплый ответ';
         emojiInput.value = '💗';
         renderCareHistory(result.history || []);
         showNotice('Ответ отправлен');
@@ -1774,73 +2178,134 @@ function renderActiveHeader(user, partner) {
       }
 
       function buildReplyForm(item) {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'reply-box';
+        const wrapper = document.createElement('div');
+        wrapper.className = 'reply-box';
 
-  const title = document.createElement('div');
-  title.className = 'strong';
-  title.textContent = 'Ответить партнёру';
-  wrapper.appendChild(title);
+        const title = document.createElement('div');
+        title.className = 'strong';
+        title.textContent = 'Как ответить сейчас';
+        wrapper.appendChild(title);
 
-  const quickRow = document.createElement('div');
-  quickRow.className = 'quick-replies';
-  replySuggestions.forEach((suggestion) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'secondary';
-    button.textContent = `${suggestion.emoji} ${suggestion.title}`;
-    button.addEventListener('click', () => {
-      withButtonBusy(button, 'Отправляю…', async () => {
-        await sendQuickReply(item.id, suggestion);
-      }).catch((error) => showError(error.message || 'Не удалось отправить ответ.'));
-    });
-    quickRow.appendChild(button);
-  });
-  wrapper.appendChild(quickRow);
+        const target = document.createElement('div');
+        target.className = 'meta';
+        target.textContent = `Ответ уйдёт: ${item.sender.display_name}`;
+        wrapper.appendChild(target);
 
-  const toggle = document.createElement('button');
-  toggle.type = 'button';
-  toggle.className = 'ghost';
-  toggle.textContent = 'Свой ответ';
-  wrapper.appendChild(toggle);
+        const quickReplies = Array.isArray(item.quick_replies) ? item.quick_replies : [];
+        if (quickReplies.length > 0) {
+          const quickList = document.createElement('div');
+          quickList.className = 'list';
+          quickReplies.forEach((reply) => {
+            const choice = document.createElement('div');
+            choice.className = 'template-item';
 
-  const customForm = document.createElement('div');
-  customForm.className = 'grid hidden';
-  customForm.innerHTML = `
-    <div class="split">
-      <label style="flex: 0 0 92px;">
-        Эмодзи
-        <input data-role="reply-emoji" class="emoji-input" maxlength="4" value="💗" />
-      </label>
-      <label style="flex: 1 1 220px;">
-        Заголовок
-        <input data-role="reply-title" maxlength="80" value="Мой ответ" />
-      </label>
-    </div>
-    <label>
-      Текст ответа
-      <textarea data-role="reply-body" placeholder="Напиши свой ответ"></textarea>
-    </label>
-    <div class="actions">
-      <button data-role="reply-submit" class="primary" type="button">Отправить ответ</button>
-    </div>
-  `;
-  toggle.addEventListener('click', () => {
-    const nextHidden = !customForm.classList.contains('hidden');
-    customForm.classList.toggle('hidden', nextHidden);
-    toggle.textContent = nextHidden ? 'Свой ответ' : 'Скрыть форму';
-  });
-  customForm.querySelector('[data-role="reply-submit"]').addEventListener('click', () => {
-    sendCustomReply(item.id, customForm).catch((error) => showError(error.message || 'Не удалось отправить ответ.'));
-  });
-  wrapper.appendChild(customForm);
-  return wrapper;
-}
+            const top = document.createElement('div');
+            top.className = 'header-row';
+            const replyTitle = document.createElement('div');
+            replyTitle.className = 'template-title';
+            replyTitle.textContent = `${reply.emoji || ''} ${reply.title || ''}`.trim();
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'secondary';
+            button.textContent = 'Отправить';
+            button.addEventListener('click', () => {
+              withButtonBusy(button, 'Отправляю…', async () => {
+                await sendQuickReply(item.id, reply.code);
+              }).catch((error) => showError(error.message || 'Не удалось отправить ответ.'));
+            });
+            top.append(replyTitle, button);
+
+            const tone = document.createElement('div');
+            tone.className = 'meta';
+            tone.textContent = `Тон сообщения: ${reply.tone_label || 'мягкий ответ'}`;
+
+            const previewTitle = document.createElement('div');
+            previewTitle.className = 'strong';
+            previewTitle.textContent = 'Что сейчас отправится';
+
+            const body = document.createElement('div');
+            body.className = 'template-body';
+            body.textContent = reply.body || '';
+
+            choice.append(top, tone, previewTitle, body);
+            quickList.appendChild(choice);
+          });
+          wrapper.appendChild(quickList);
+        }
+
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'ghost';
+        toggle.textContent = 'Свой ответ';
+        wrapper.appendChild(toggle);
+
+        const customForm = document.createElement('div');
+        customForm.className = 'grid hidden';
+        customForm.innerHTML = `
+          <div class="meta">Тон сообщения: свой мягкий ответ.</div>
+          <div class="split">
+            <label style="flex: 0 0 92px;">
+              Эмодзи
+              <input data-role="reply-emoji" class="emoji-input" maxlength="4" value="💗" />
+            </label>
+            <label style="flex: 1 1 220px;">
+              Заголовок
+              <input data-role="reply-title" maxlength="80" value="Тёплый ответ" />
+            </label>
+          </div>
+          <label>
+            Текст ответа
+            <textarea data-role="reply-body" placeholder="Напиши свой ответ"></textarea>
+          </label>
+          <div class="reply-box">
+            <div class="strong">Что сейчас отправится</div>
+            <div data-role="reply-preview-title" class="history-title">💗 Тёплый ответ</div>
+            <div data-role="reply-preview-body" class="reply-body">Напиши свой ответ партнёру.</div>
+          </div>
+          <div class="actions">
+            <button data-role="reply-submit" class="primary" type="button">Отправить ответ</button>
+          </div>
+        `;
+
+        const emojiInput = customForm.querySelector('[data-role="reply-emoji"]');
+        const titleInput = customForm.querySelector('[data-role="reply-title"]');
+        const bodyInput = customForm.querySelector('[data-role="reply-body"]');
+        const previewTitle = customForm.querySelector('[data-role="reply-preview-title"]');
+        const previewBody = customForm.querySelector('[data-role="reply-preview-body"]');
+
+        const updateReplyPreview = () => {
+          const emoji = emojiInput.value.trim() || '💗';
+          const titleValue = titleInput.value.trim() || 'Тёплый ответ';
+          const bodyValue = bodyInput.value.trim() || 'Напиши свой ответ партнёру.';
+          previewTitle.textContent = `${emoji} ${titleValue}`;
+          previewBody.textContent = bodyValue;
+        };
+
+        [emojiInput, titleInput, bodyInput].forEach((node) => {
+          node.addEventListener('input', updateReplyPreview);
+        });
+        updateReplyPreview();
+
+        toggle.addEventListener('click', () => {
+          const nextHidden = !customForm.classList.contains('hidden');
+          customForm.classList.toggle('hidden', nextHidden);
+          toggle.textContent = nextHidden ? 'Свой ответ' : 'Скрыть форму';
+        });
+        customForm.querySelector('[data-role="reply-submit"]').addEventListener('click', () => {
+          sendCustomReply(item.id, customForm).catch((error) => showError(error.message || 'Не удалось отправить ответ.'));
+        });
+        wrapper.appendChild(customForm);
+        return wrapper;
+      }
 
       function renderCareHistory(history) {
         state.careHistory = Array.isArray(history) ? history : [];
+        if (!state.careHistoryExpanded && hasActionableCareReply(state.careHistory)) {
+          state.careHistoryExpanded = true;
+        }
         el.careHistoryList.innerHTML = '';
         el.emptyCareHistory.classList.toggle('hidden', state.careHistory.length > 0);
+        updateCareHistoryVisibility();
 
         state.careHistory.forEach((item) => {
           const card = document.createElement('div');
@@ -1859,8 +2324,12 @@ function renderActiveHeader(user, partner) {
           const direction = document.createElement('div');
           direction.className = 'meta';
           direction.textContent = item.direction === 'outbound'
-            ? `Для ${item.recipient.display_name}`
-            : `От ${item.sender.display_name}`;
+            ? `Ты → ${item.recipient.display_name}`
+            : `${item.sender.display_name} → тебе`;
+
+          const tone = document.createElement('div');
+          tone.className = 'meta';
+          tone.textContent = `Тон сообщения: ${item.tone_label || 'тёплое сообщение'} • ${item.recipient_hint || 'нейтральный текст'}`;
 
           const body = document.createElement('div');
           body.className = 'history-body';
@@ -1870,7 +2339,7 @@ function renderActiveHeader(user, partner) {
           meta.className = 'meta';
           meta.textContent = formatDateTime(item.created_at);
 
-          card.append(top, direction, body, meta);
+          card.append(top, direction, tone, body, meta);
 
           if (item.response_title || item.response_body) {
             const response = document.createElement('div');
@@ -1922,17 +2391,24 @@ function renderActiveHeader(user, partner) {
         const user = serverState?.user || payload.user || null;
         const partner = serverState?.partner || null;
         renderProfileCard(user, partner);
+        updateCareAudienceLabels();
+        updateCustomCarePreview();
 
         state.inviteId = serverState?.incoming_invite?.id || payload.invite_preview?.invite_id || null;
         state.inviteToken = payload.invite_preview ? getStartParam().replace(/^invite_/, '') : null;
+        if (typeof payload.invite_preview_error === 'string' && payload.invite_preview_error.trim()) {
+          showNotice(payload.invite_preview_error, 'warning');
+        }
 
         if (!serverState) {
+          clearInviteLinks();
           showPrimary('loading');
           setActiveBlocksVisible(false);
           return;
         }
 
         if (payload.invite_preview && state.inviteToken) {
+          clearInviteLinks();
           setActiveBlocksVisible(false);
           el.incomingText.textContent = `${payload.invite_preview.inviter.display_name} приглашает тебя в пару.`;
           showPrimary('incoming_invite');
@@ -1940,6 +2416,7 @@ function renderActiveHeader(user, partner) {
         }
 
         if (serverState.mode === 'active' && partner) {
+          clearInviteLinks();
           renderActiveHeader(user, partner);
           showPrimary('active');
           setActiveBlocksVisible(true);
@@ -1955,18 +2432,21 @@ function renderActiveHeader(user, partner) {
         setActiveBlocksVisible(false);
 
         if (serverState.mode === 'incoming_invite') {
+          clearInviteLinks();
           const inviterName = serverState.incoming_invite?.inviter?.display_name || 'Партнёр';
-          el.incomingText.textContent = `${inviterName} приглашает тебя в пару. После подтверждения приложение откроет общие функции.`;
+          el.incomingText.textContent = `${inviterName} хочет подключиться к вашему общему пространству. После подтверждения откроются напоминания и сообщения.`;
           showPrimary('incoming_invite');
           return;
         }
 
         if (serverState.mode === 'outgoing_invite' && serverState.outgoing_invite) {
-          el.outgoingText.textContent = `Приглашение уже создано и действует до ${formatDateTime(serverState.outgoing_invite.expires_at)}.`;
+          renderInviteLinks(el.inviteLinks, serverState.outgoing_invite);
+          el.outgoingText.textContent = `Ссылка уже готова и действует до ${formatDateTime(serverState.outgoing_invite.expires_at)}.`;
           showPrimary('outgoing_invite');
           return;
         }
 
+        clearInviteLinks();
         showPrimary('no_pair');
       }
 
@@ -1992,10 +2472,8 @@ function renderActiveHeader(user, partner) {
 
       async function createInvite() {
         const result = await api('/api/v1/pairs/invite', { method: 'POST', body: '{}' });
-        renderInviteLinks(el.inviteLinks, result.invite);
-        renderInviteLinks(el.inviteLinksRepeat, result.invite);
-        applyPayload({ state: result.state });
-        showNotice('Приглашение создано');
+        applyPayload(result);
+        showNotice('Ссылка готова');
         tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
@@ -2022,8 +2500,23 @@ function renderActiveHeader(user, partner) {
           method: 'POST',
           body: JSON.stringify(payload),
         });
-        applyPayload({ state: result.state });
+        applyPayload(result);
         showNotice('Приглашение отклонено');
+        tg?.HapticFeedback?.notificationOccurred?.('success');
+      }
+
+      async function cancelInvite() {
+        const confirmed = await new Promise((resolve) => {
+          if (!tg?.showConfirm) {
+            resolve(window.confirm('Отменить текущее приглашение?'));
+            return;
+          }
+          tg.showConfirm('Отменить текущее приглашение?', resolve);
+        });
+        if (!confirmed) return;
+        const result = await api('/api/v1/pairs/invite/cancel', { method: 'POST', body: '{}' });
+        applyPayload(result);
+        showNotice('Приглашение отменено', 'warning');
         tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
@@ -2066,10 +2559,10 @@ function renderActiveHeader(user, partner) {
       async function cancelReminder(ruleId) {
         const confirmed = await new Promise((resolve) => {
           if (!tg?.showConfirm) {
-            resolve(window.confirm('Отменить это напоминание?'));
+            resolve(window.confirm('Остановить это напоминание?'));
             return;
           }
-          tg.showConfirm('Отменить это напоминание?', resolve);
+          tg.showConfirm('Остановить это напоминание?', resolve);
         });
         if (!confirmed) return;
         const result = await api(`/api/v1/reminders/${ruleId}/cancel`, { method: 'POST', body: '{}' });
@@ -2087,7 +2580,7 @@ function renderActiveHeader(user, partner) {
           body: JSON.stringify({ template_code: templateCode }),
         });
         renderCareHistory(result.history || []);
-        showNotice('Сообщение отправляется');
+        showNotice('Сообщение уходит партнёру');
         tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
@@ -2109,15 +2602,16 @@ function renderActiveHeader(user, partner) {
           method: 'POST',
           body: JSON.stringify({
             emoji: el.customCareEmoji.value.trim() || '💌',
-            title: el.customCareTitle.value.trim() || 'Моё сообщение',
+            title: el.customCareTitle.value.trim() || 'Тёплое сообщение',
             message: body,
           }),
         });
         el.customCareBody.value = '';
         el.customCareTitle.value = '';
         el.customCareEmoji.value = '';
+        updateCustomCarePreview();
         renderCareHistory(result.history || []);
-        showNotice('Сообщение отправляется');
+        showNotice('Сообщение уходит партнёру');
         tg?.HapticFeedback?.notificationOccurred?.('success');
       }
 
@@ -2133,6 +2627,7 @@ function renderActiveHeader(user, partner) {
       }
 
       async function bootstrap() {
+        updateViewportHeight();
         applyTheme();
         tg?.ready?.();
         tg?.expand?.();
@@ -2141,7 +2636,7 @@ function renderActiveHeader(user, partner) {
         showPrimary('loading');
         setProfileVisible(false);
         setActiveBlocksVisible(false);
-        el.reminderMeta.textContent = `Твой часовой пояс: ${Intl.DateTimeFormat().resolvedOptions().timeZone || 'не определён'}`;
+        updateReminderRecurrenceControls();
 
         try {
           const auth = await api('/api/v1/auth', {
@@ -2179,6 +2674,8 @@ function renderActiveHeader(user, partner) {
         }
       });
 
+      window.addEventListener('resize', updateViewportHeight);
+
       el.retryBootstrap.addEventListener('click', () => {
         bootstrap().catch((error) => showError(error.message || 'Не удалось заново открыть приложение.', { alert: false }));
       });
@@ -2199,12 +2696,51 @@ function renderActiveHeader(user, partner) {
         withButtonBusy(el.rejectInvite, 'Отклоняю…', rejectInvite).catch((error) => showError(error.message || 'Не удалось отклонить приглашение.'));
       });
 
+      el.cancelInvite.addEventListener('click', () => {
+        withButtonBusy(el.cancelInvite, 'Отменяю…', cancelInvite).catch((error) => showError(error.message || 'Не удалось отменить приглашение.'));
+      });
+
       el.refreshState.addEventListener('click', () => {
         withButtonBusy(el.refreshState, 'Обновляю…', refreshState).catch((error) => showError(error.message || 'Не удалось обновить состояние.'));
       });
 
+      el.jumpReminders.addEventListener('click', () => {
+        state.reminderFormExpanded = true;
+        setActiveTab('reminders');
+        setReminderFormExpanded(true, { scroll: true });
+        tg?.HapticFeedback?.selectionChanged?.();
+      });
+
+      el.jumpMessages.addEventListener('click', () => {
+        setActiveTab('messages');
+        tg?.HapticFeedback?.selectionChanged?.();
+      });
+
+      el.togglePairActions.addEventListener('click', () => {
+        state.pairActionsExpanded = !state.pairActionsExpanded;
+        updatePairActionsVisibility();
+      });
+
       el.unpair.addEventListener('click', () => {
         withButtonBusy(el.unpair, 'Разрываю…', unpair).catch((error) => showError(error.message || 'Не удалось завершить пару.'));
+      });
+
+      el.openReminderForm.addEventListener('click', () => {
+        if (state.reminderFormMode !== 'edit') {
+          resetReminderForm({ keepText: false });
+        }
+        state.reminderFormExpanded = true;
+        updateReminderComposerVisibility();
+        el.reminderFormCard.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      });
+
+      el.toggleReminderForm.addEventListener('click', () => {
+        const nextExpanded = !shouldShowReminderForm();
+        if (!nextExpanded && state.reminderFormMode === 'edit') {
+          return;
+        }
+        state.reminderFormExpanded = nextExpanded;
+        updateReminderComposerVisibility();
       });
 
       el.createReminder.addEventListener('click', () => {
@@ -2241,8 +2777,22 @@ function renderActiveHeader(user, partner) {
         withButtonBusy(el.sendCustomCare, 'Отправляю…', sendCustomCare).catch((error) => showError(error.message || 'Не удалось отправить своё сообщение.'));
       });
 
+      el.toggleCustomCare.addEventListener('click', () => {
+        state.customCareExpanded = !state.customCareExpanded;
+        updateCustomCareVisibility();
+      });
+
+      [el.customCareEmoji, el.customCareTitle, el.customCareBody].forEach((node) => {
+        node.addEventListener('input', updateCustomCarePreview);
+      });
+
       el.careHistoryRefresh.addEventListener('click', () => {
         withButtonBusy(el.careHistoryRefresh, 'Обновляю…', refreshCareHistory).catch((error) => showError(error.message || 'Не удалось обновить историю.'));
+      });
+
+      el.toggleCareHistory.addEventListener('click', () => {
+        state.careHistoryExpanded = !state.careHistoryExpanded;
+        updateCareHistoryVisibility();
       });
 
       el.careCategory.addEventListener('change', () => {

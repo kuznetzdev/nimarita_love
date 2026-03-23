@@ -54,6 +54,36 @@ class PairingRepository:
         )
         return _row_to_invite(row) if row is not None else None
 
+    async def cancel_latest_pending_outgoing_invite(self, *, inviter_user_id: int, now: datetime) -> PairInvite | None:
+        async with self._db.transaction() as tx:
+            invite_row = await tx.fetchone(
+                """
+                SELECT * FROM pair_invites
+                WHERE inviter_user_id = ? AND status = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (inviter_user_id, InviteStatus.PENDING.value),
+            )
+            if invite_row is None:
+                return None
+            invite = _row_to_invite(invite_row)
+            await tx.execute(
+                """
+                UPDATE pair_invites
+                SET status = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    InviteStatus.EXPIRED.value,
+                    now.isoformat(),
+                    invite.id,
+                ),
+            )
+            cancelled_row = await tx.fetchone("SELECT * FROM pair_invites WHERE id = ?", (invite.id,))
+            assert cancelled_row is not None
+            return _row_to_invite(cancelled_row)
+
     async def get_latest_pending_incoming_invite(self, user_id: int) -> PairInvite | None:
         row = await self._db.fetchone(
             """

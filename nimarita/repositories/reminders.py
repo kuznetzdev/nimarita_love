@@ -259,15 +259,22 @@ class ReminderRepository:
             rule = _row_to_rule(rule_row)
             if rule.creator_user_id != actor_user_id:
                 raise PermissionError("Только создатель может отменить это напоминание.")
-            occurrence_row = await tx.fetchone(
-                "SELECT * FROM reminder_occurrences WHERE rule_id = ? ORDER BY id DESC LIMIT 1",
-                (rule_id,),
+            occurrence_rows = await tx.fetchall(
+                """
+                SELECT * FROM reminder_occurrences
+                WHERE rule_id = ? AND status IN (?, ?)
+                ORDER BY scheduled_at_utc ASC, id ASC
+                """,
+                (
+                    rule_id,
+                    ReminderOccurrenceStatus.SCHEDULED.value,
+                    ReminderOccurrenceStatus.PROCESSING.value,
+                ),
             )
-            if occurrence_row is None:
+            if not occurrence_rows:
                 raise LookupError("Экземпляр напоминания не найден.")
-            occurrence = _row_to_occurrence(occurrence_row)
-            if occurrence.status is not ReminderOccurrenceStatus.SCHEDULED:
-                raise ValueError("Можно отменить только запланированные напоминания.")
+            open_occurrences = [_row_to_occurrence(row) for row in occurrence_rows]
+            occurrence = open_occurrences[0]
             await tx.execute(
                 """
                 UPDATE reminder_rules
@@ -281,17 +288,19 @@ class ReminderRepository:
                     rule_id,
                 ),
             )
+            occurrence_ids = [item.id for item in open_occurrences]
+            placeholders = ",".join("?" for _ in occurrence_ids)
             await tx.execute(
-                """
+                f"""
                 UPDATE reminder_occurrences
-                SET status = ?, cancelled_at = ?, updated_at = ?
-                WHERE id = ?
+                SET status = ?, cancelled_at = COALESCE(cancelled_at, ?), updated_at = ?
+                WHERE id IN ({placeholders})
                 """,
                 (
                     ReminderOccurrenceStatus.CANCELLED.value,
                     now.isoformat(),
                     now.isoformat(),
-                    occurrence.id,
+                    *occurrence_ids,
                 ),
             )
             updated_rule_row = await tx.fetchone("SELECT * FROM reminder_rules WHERE id = ?", (rule_id,))
@@ -325,18 +334,17 @@ class ReminderRepository:
                 raise PermissionError("Только создатель может редактировать это напоминание.")
             if rule.status is not ReminderRuleStatus.ACTIVE:
                 raise ValueError("Можно редактировать только активные напоминания.")
-            occurrence_row = await tx.fetchone(
+            occurrence_rows = await tx.fetchall(
                 """
                 SELECT * FROM reminder_occurrences
                 WHERE rule_id = ? AND status = ?
                 ORDER BY scheduled_at_utc ASC, id ASC
-                LIMIT 1
                 """,
                 (rule_id, ReminderOccurrenceStatus.SCHEDULED.value),
             )
-            if occurrence_row is None:
+            if not occurrence_rows:
                 raise ValueError("Нет ближайшего запланированного экземпляра для редактирования.")
-            occurrence = _row_to_occurrence(occurrence_row)
+            occurrence = _row_to_occurrence(occurrence_rows[0])
             await tx.execute(
                 """
                 UPDATE reminder_rules
@@ -377,6 +385,22 @@ class ReminderRepository:
                     occurrence.id,
                 ),
             )
+            if len(occurrence_rows) > 1:
+                extra_occurrence_ids = [int(row["id"]) for row in occurrence_rows[1:]]
+                placeholders = ",".join("?" for _ in extra_occurrence_ids)
+                await tx.execute(
+                    f"""
+                    UPDATE reminder_occurrences
+                    SET status = ?, cancelled_at = COALESCE(cancelled_at, ?), updated_at = ?
+                    WHERE id IN ({placeholders})
+                    """,
+                    (
+                        ReminderOccurrenceStatus.CANCELLED.value,
+                        now.isoformat(),
+                        now.isoformat(),
+                        *extra_occurrence_ids,
+                    ),
+                )
             updated_rule_row = await tx.fetchone("SELECT * FROM reminder_rules WHERE id = ?", (rule_id,))
             updated_occurrence_row = await tx.fetchone("SELECT * FROM reminder_occurrences WHERE id = ?", (occurrence.id,))
             assert updated_rule_row is not None and updated_occurrence_row is not None
@@ -419,12 +443,21 @@ class ReminderRepository:
         async with self._db.transaction() as tx:
             rows = await tx.fetchall(
                 """
-                SELECT id FROM reminder_occurrences
-                WHERE status = ? AND next_attempt_at_utc <= ?
-                ORDER BY next_attempt_at_utc ASC, id ASC
+                SELECT ro.id
+                FROM reminder_occurrences ro
+                JOIN reminder_rules rr ON rr.id = ro.rule_id
+                WHERE ro.status = ?
+                  AND ro.next_attempt_at_utc <= ?
+                  AND rr.status = ?
+                ORDER BY ro.next_attempt_at_utc ASC, ro.id ASC
                 LIMIT ?
                 """,
-                (ReminderOccurrenceStatus.SCHEDULED.value, now.isoformat(), limit),
+                (
+                    ReminderOccurrenceStatus.SCHEDULED.value,
+                    now.isoformat(),
+                    ReminderRuleStatus.ACTIVE.value,
+                    limit,
+                ),
             )
             occurrence_ids = [int(row["id"]) for row in rows]
             if not occurrence_ids:

@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from nimarita.catalog import CARE_TEMPLATE_DEFINITIONS, CareQuickReplySeed, get_quick_reply
 from nimarita.config import Settings
-from nimarita.domain.enums import RelationshipRole
+from nimarita.domain.enums import CareDispatchStatus, RelationshipRole
 from nimarita.domain.errors import ConflictError, NotFoundError, ValidationError
 from nimarita.domain.models import CareDispatch, CareEnvelope, CareTemplate, User
 from nimarita.repositories.care import CareRepository
@@ -15,6 +15,7 @@ from nimarita.repositories.users import UserRepository
 from nimarita.services.audit import AuditService
 
 CareDeliver = Callable[[CareEnvelope], Awaitable[int]]
+_DUPLICATE_SUBMIT_WINDOW = timedelta(seconds=30)
 
 
 @dataclass(slots=True, frozen=True)
@@ -101,6 +102,28 @@ class CareService:
             raise ValidationError('Заголовок сообщения заботы слишком длинный. Максимум 80 символов.')
         if len(clean_body) > 1000:
             raise ValidationError('Текст сообщения заботы слишком длинный. Максимум 1000 символов.')
+        clean_emoji = (emoji or '💌').strip()[:4] or '💌'
+        existing = await self._find_recent_custom_duplicate(
+            pair_id=pair.id,
+            sender=user,
+            recipient=partner,
+            title=clean_title,
+            body=clean_body,
+            emoji=clean_emoji,
+            now=datetime.now(tz=UTC),
+        )
+        if existing is not None:
+            await self._audit_event(
+                action='care_custom_idempotent_reused',
+                entity_id=existing.dispatch.id,
+                actor_user_id=existing.sender.id,
+                payload={
+                    'pair_id': existing.dispatch.pair_id,
+                    'recipient_user_id': existing.recipient.id,
+                    'title': existing.dispatch.title,
+                },
+            )
+            return existing
         await self._enforce_rate_limits(user_id=user.id, pair_id=pair.id, template_code='custom')
         dispatch = await self._care.create_custom_dispatch(
             pair_id=pair.id,
@@ -110,7 +133,7 @@ class CareService:
             category_label='Мои сообщения',
             title=clean_title,
             body=clean_body,
-            emoji=(emoji or '💌').strip()[:4] or '💌',
+            emoji=clean_emoji,
             now=datetime.now(tz=UTC),
         )
         envelope = await self._build_envelope(dispatch)
@@ -404,6 +427,36 @@ class CareService:
                 continue
             history.append(CareEnvelope(dispatch=dispatch, sender=sender, recipient=recipient))
         return history
+
+    async def _find_recent_custom_duplicate(
+        self,
+        *,
+        pair_id: int,
+        sender: User,
+        recipient: User,
+        title: str,
+        body: str,
+        emoji: str,
+        now: datetime,
+    ) -> CareEnvelope | None:
+        cutoff = now - _DUPLICATE_SUBMIT_WINDOW
+        for dispatch in await self._care.list_history_for_pair(pair_id=pair_id, limit=10):
+            if dispatch.created_at < cutoff:
+                continue
+            if dispatch.sender_user_id != sender.id or dispatch.recipient_user_id != recipient.id:
+                continue
+            if dispatch.template_code != 'custom':
+                continue
+            if dispatch.status not in {
+                CareDispatchStatus.PENDING,
+                CareDispatchStatus.PROCESSING,
+                CareDispatchStatus.SENT,
+            }:
+                continue
+            if dispatch.title != title or dispatch.body != body or dispatch.emoji != emoji:
+                continue
+            return CareEnvelope(dispatch=dispatch, sender=sender, recipient=recipient)
+        return None
 
     async def _ensure_seeded(self) -> None:
         if self._seeded:

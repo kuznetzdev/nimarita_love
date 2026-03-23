@@ -6,13 +6,15 @@ from calendar import monthrange
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from nimarita.config import Settings
-from nimarita.domain.enums import ReminderIntervalUnit, ReminderRuleKind, ReminderRuleStatus
+from nimarita.domain.enums import ReminderIntervalUnit, ReminderOccurrenceStatus, ReminderRuleKind, ReminderRuleStatus
 from nimarita.domain.errors import ConflictError, NotFoundError, ValidationError
 from nimarita.domain.models import ReminderEnvelope, ReminderOccurrence, ReminderRule, User
 from nimarita.repositories.pairing import PairingRepository
 from nimarita.repositories.reminders import ReminderRepository
 from nimarita.repositories.users import UserRepository
 from nimarita.services.audit import AuditService
+
+_DUPLICATE_SUBMIT_WINDOW = timedelta(seconds=30)
 
 
 @dataclass(slots=True, frozen=True)
@@ -81,6 +83,31 @@ class ReminderService:
             raise ValidationError("Время напоминания должно быть в будущем.")
 
         recurrence_every, recurrence_unit = _normalize_recurrence(kind, recurrence_every, recurrence_unit)
+        existing = await self._find_recent_duplicate_reminder(
+            pair_id=pair.id,
+            creator=user,
+            recipient=partner,
+            text=clean_text,
+            timezone=timezone,
+            scheduled_at_utc=scheduled_at_utc,
+            kind=kind,
+            recurrence_every=recurrence_every,
+            recurrence_unit=recurrence_unit,
+            now=now,
+        )
+        if existing is not None:
+            await self._audit_event(
+                action='reminder_idempotent_reused',
+                entity_id=existing.occurrence.id,
+                actor_user_id=existing.creator.id,
+                payload={
+                    'pair_id': existing.rule.pair_id,
+                    'recipient_user_id': existing.recipient.id,
+                    'scheduled_at_utc': existing.occurrence.scheduled_at_utc.isoformat(),
+                    'kind': existing.rule.kind.value,
+                },
+            )
+            return existing
 
         await self._users.set_timezone(user.id, timezone)
         rule, occurrence = await self._reminders.create_reminder(
@@ -403,6 +430,44 @@ class ReminderService:
         )
         return next_occurrence
 
+    async def _find_recent_duplicate_reminder(
+        self,
+        *,
+        pair_id: int,
+        creator: User,
+        recipient: User,
+        text: str,
+        timezone: str,
+        scheduled_at_utc: datetime,
+        kind: ReminderRuleKind,
+        recurrence_every: int,
+        recurrence_unit: ReminderIntervalUnit | None,
+        now: datetime,
+    ) -> ReminderEnvelope | None:
+        cutoff = now - _DUPLICATE_SUBMIT_WINDOW
+        for rule, occurrence in await self._reminders.list_for_pair(pair_id, limit=10):
+            if rule.created_at < cutoff:
+                continue
+            if rule.creator_user_id != creator.id or rule.recipient_user_id != recipient.id:
+                continue
+            if rule.status is not ReminderRuleStatus.ACTIVE:
+                continue
+            if occurrence.status not in {
+                ReminderOccurrenceStatus.SCHEDULED,
+                ReminderOccurrenceStatus.PROCESSING,
+            }:
+                continue
+            if occurrence.text != text:
+                continue
+            if rule.creator_timezone != timezone or rule.origin_scheduled_at_utc != scheduled_at_utc:
+                continue
+            if rule.kind is not kind:
+                continue
+            if rule.recurrence_every != recurrence_every or rule.recurrence_unit != recurrence_unit:
+                continue
+            return ReminderEnvelope(rule=rule, occurrence=occurrence, creator=creator, recipient=recipient)
+        return None
+
 
     async def _audit_event(
         self,
@@ -505,7 +570,7 @@ def _normalize_recurrence(
     recurrence_every: int,
     recurrence_unit: ReminderIntervalUnit | None,
 ) -> tuple[int, ReminderIntervalUnit | None]:
-    every = int(recurrence_every or 1)
+    every = int(recurrence_every) if recurrence_every is not None else 1
     if every < 1:
         raise ValidationError('Интервал повторения должен быть не меньше 1.')
     if kind is ReminderRuleKind.ONE_TIME:

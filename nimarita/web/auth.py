@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import hmac
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
 from urllib.parse import parse_qsl
 
 from nimarita.domain.models import TelegramUserSnapshot
+
+_MAX_INIT_DATA_BYTES = 8192
+_MAX_INIT_DATA_FIELDS = 32
 
 
 @dataclass(slots=True)
@@ -29,12 +32,24 @@ class TelegramInitDataVerifier:
     def verify(self, init_data: str) -> TelegramUserSnapshot:
         if not init_data.strip():
             raise WebAuthError(status=401, message="Отсутствует Telegram initData.")
-
-        pairs = parse_qsl(init_data, keep_blank_values=True)
+        if len(init_data.encode("utf-8")) > _MAX_INIT_DATA_BYTES:
+            raise WebAuthError(status=401, message="Telegram initData слишком большой.")
+        try:
+            pairs = parse_qsl(
+                init_data,
+                keep_blank_values=True,
+                max_num_fields=_MAX_INIT_DATA_FIELDS,
+            )
+        except ValueError as error:
+            raise WebAuthError(status=401, message="Некорректный формат Telegram initData.") from error
         if not pairs:
             raise WebAuthError(status=401, message="Telegram initData пустой.")
 
-        fields = {key: value for key, value in pairs}
+        fields: dict[str, str] = {}
+        for key, value in pairs:
+            if key in fields:
+                raise WebAuthError(status=401, message="Telegram initData содержит дублирующиеся поля.")
+            fields[key] = value
         provided_hash = fields.pop("hash", "")
         if not provided_hash:
             raise WebAuthError(status=401, message="Отсутствует хеш Telegram initData.")
@@ -68,11 +83,11 @@ class TelegramInitDataVerifier:
         if now_timestamp - auth_date > self._ttl_seconds:
             raise WebAuthError(status=401, message="Срок действия Telegram initData истёк.")
 
-        user_payload = _parse_json_object(fields.get("user"))
+        user_payload = _parse_json_object(fields.get("user"), field_name="user")
         if not user_payload:
             raise WebAuthError(status=401, message="Отсутствуют данные пользователя Telegram.")
 
-        chat_payload = _parse_json_object(fields.get("chat"))
+        chat_payload = _parse_json_object(fields.get("chat"), field_name="chat")
         chat_id = _read_int(chat_payload.get("id"), default=None) if chat_payload else None
 
         telegram_user_id = _read_int(user_payload.get("id"), default=None)
@@ -118,9 +133,12 @@ class SessionManager:
         padded = encoded_part + "=" * (-len(encoded_part) % 4)
         try:
             raw = base64.urlsafe_b64decode(padded.encode("utf-8"))
-            payload = json.loads(raw.decode("utf-8"))
-        except Exception as error:
+            payload_raw = json.loads(raw.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError, binascii.Error) as error:
             raise WebAuthError(status=401, message="Некорректный payload сессии.") from error
+        if not isinstance(payload_raw, dict):
+            raise WebAuthError(status=401, message="Некорректный payload сессии.")
+        payload: dict[str, object] = payload_raw
         exp = int(payload.get("exp", 0))
         if exp < int(datetime.now(tz=UTC).timestamp()):
             raise WebAuthError(status=401, message="Срок действия токена сессии истёк.")
@@ -131,18 +149,20 @@ class SessionManager:
 
 
 
-def _parse_json_object(value: str | None) -> dict[str, Any]:
+def _parse_json_object(value: str | None, *, field_name: str) -> dict[str, object]:
     if not value:
         return {}
     try:
         parsed = json.loads(value)
-    except json.JSONDecodeError:
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError as error:
+        raise WebAuthError(status=401, message=f"Некорректное поле {field_name} в Telegram initData.") from error
+    if not isinstance(parsed, dict):
+        raise WebAuthError(status=401, message=f"Некорректное поле {field_name} в Telegram initData.")
+    return {str(key): value for key, value in parsed.items()}
 
 
 
-def _read_int(value: Any, default: int | None) -> int | None:
+def _read_int(value: object, default: int | None) -> int | None:
     if value is None:
         return default
     try:
@@ -152,7 +172,7 @@ def _read_int(value: Any, default: int | None) -> int | None:
 
 
 
-def _read_optional_text(value: Any) -> str | None:
+def _read_optional_text(value: object) -> str | None:
     if value is None:
         return None
     text = str(value).strip()

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from nimarita.config import Settings
@@ -118,10 +120,23 @@ class SystemService:
         self._last_database_audit: DatabaseAuditSnapshot | None = None
         self._last_checkpoint: DatabaseCheckpointResult | None = None
         self._last_backup: BackupSnapshot | None = None
+        self._deployment_warnings = self._build_deployment_warnings()
 
     @property
     def started_at(self) -> datetime:
         return self._started_at
+
+    async def log_deployment_warnings(self) -> None:
+        if not self._deployment_warnings:
+            return
+        for warning in self._deployment_warnings:
+            logger.warning('Deployment warning: %s', warning)
+        await self._audit.record(
+            action='sqlite_deployment_warnings',
+            entity_type='system',
+            entity_id='database',
+            payload={'warnings': list(self._deployment_warnings)},
+        )
 
     async def reconcile_startup(self) -> StartupRecoveryResult:
         now = datetime.now(tz=UTC)
@@ -336,8 +351,36 @@ class SystemService:
                     'last_backup_age_seconds': last_backup_age_seconds,
                 },
                 'workers': workers,
+                'deployment': {
+                    'database_path': str(self._settings.database_path),
+                    'backup_directory': str(self._settings.backup_directory),
+                    'sqlite_journal_mode': self._settings.sqlite_journal_mode,
+                    'sqlite_synchronous': self._settings.sqlite_synchronous,
+                    'warnings': list(self._deployment_warnings),
+                },
             },
         }
+
+    def _build_deployment_warnings(self) -> tuple[str, ...]:
+        warnings: list[str] = [
+            'SQLite deployment assumes a single writer; do not run multiple Railway replicas against the same database file.',
+        ]
+        railway_volume_raw = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
+        if railway_volume_raw:
+            railway_volume = Path(railway_volume_raw)
+            if not _is_path_inside(railway_volume, self._settings.database_path):
+                warnings.append('SQLite database path is outside the Railway volume; persistence across restarts is not guaranteed.')
+            if self._settings.backup_enabled and not _is_path_inside(railway_volume, self._settings.backup_directory):
+                warnings.append('Backup directory is outside the Railway volume; backup files will be ephemeral.')
+            if self._settings.sqlite_journal_mode == 'WAL':
+                warnings.append('WAL mode on Railway requires persisting -wal and -shm sidecar files and should remain single-instance.')
+        if self._settings.sqlite_journal_mode == 'OFF':
+            warnings.append('SQLite journal_mode=OFF disables crash recovery and is unsafe for production.')
+        if self._settings.sqlite_synchronous == 'OFF':
+            warnings.append('SQLite synchronous=OFF increases corruption risk after crashes.')
+        if self._settings.session_secret == self._settings.bot_token:
+            warnings.append('APP_SESSION_SECRET matches BOT_TOKEN; rotate to a dedicated web-session secret.')
+        return tuple(warnings)
 
     def maintenance_snapshot(self) -> DatabaseMaintenanceSnapshot:
         return DatabaseMaintenanceSnapshot(
@@ -384,3 +427,11 @@ class SystemService:
             'size_bytes': snapshot.size_bytes,
             'error': snapshot.error,
         }
+
+
+def _is_path_inside(root: Path, target: Path) -> bool:
+    try:
+        target.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False

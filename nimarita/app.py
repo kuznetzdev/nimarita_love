@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
@@ -36,6 +37,8 @@ from nimarita.workers.cleanup import CleanupWorker
 from nimarita.workers.maintenance import MaintenanceWorker
 from nimarita.workers.reminders import ReminderWorker
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(slots=True)
 class Runtime:
@@ -68,6 +71,7 @@ class Runtime:
         await self.bot.get_me()
         await self.system_service.reconcile_startup()
         await self.system_service.run_startup_database_audit()
+        await self.system_service.log_deployment_warnings()
         if self.settings.backup_enabled and self.settings.backup_on_startup:
             await self.system_service.create_backup(reason='startup')
         await self.reminder_worker.start()
@@ -82,7 +86,7 @@ class Runtime:
         try:
             await sync_default_menu_button(self.bot, settings=self.settings)
         except Exception:
-            pass
+            logger.exception('Failed to sync default menu button on startup')
         for user in await self.users.list_private_chat_users():
             if user.private_chat_id is None:
                 continue
@@ -95,7 +99,10 @@ class Runtime:
                     settings=self.settings,
                 )
             except Exception:
-                pass
+                logger.exception(
+                    'Failed to sync private menu button on startup for telegram_user_id=%s',
+                    user.telegram_user_id,
+                )
 
     async def close(self) -> None:
         await self.web_server.stop()

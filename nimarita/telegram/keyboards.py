@@ -26,6 +26,10 @@ def dashboard_keyboard(state: DashboardState, webapp_url: str | None) -> InlineK
         builder.row(InlineKeyboardButton(text='Подтвердить пару 💌', callback_data=f'invite:accept:{state.incoming_invite.id}'))
         builder.row(InlineKeyboardButton(text='Отклонить', callback_data=f'invite:reject:{state.incoming_invite.id}'))
         builder.row(InlineKeyboardButton(text='Обновить', callback_data='pair:status'))
+    elif state.mode == 'outgoing_invite' and state.outgoing_invite is not None:
+        builder.row(InlineKeyboardButton(text='Обновить ссылку 💞', callback_data='pair:create'))
+        builder.row(InlineKeyboardButton(text='Отменить приглашение', callback_data='invite:cancel_outgoing'))
+        builder.row(InlineKeyboardButton(text='Обновить', callback_data='pair:status'))
     else:
         builder.row(InlineKeyboardButton(text='Создать пару 💞', callback_data='pair:create'))
         builder.row(InlineKeyboardButton(text='Обновить', callback_data='pair:status'))

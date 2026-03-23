@@ -120,14 +120,19 @@ class PairingService:
         active_pair = await self._pairing.get_active_pair_for_user(user.id)
         if active_pair is not None:
             raise ConflictError("У тебя уже есть активная пара. Сначала заверши её, чтобы принимать новое приглашение.")
-        try:
-            invite = await self._pairing.bind_pending_invite_to_user(invite.id, user.id, now)
-        except LookupError as error:
-            raise NotFoundError("Приглашение не найдено или уже недействительно.") from error
-        except PermissionError as error:
-            raise ConflictError(str(error)) from error
-        except ValueError as error:
-            raise ValidationError(str(error)) from error
+        if invite.inviter_user_id == user.id:
+            raise ValidationError("Нельзя открыть собственное приглашение как входящее.")
+        if invite.invitee_user_id is not None and invite.invitee_user_id != user.id:
+            raise ConflictError("Это приглашение уже закреплено за другим пользователем.")
+        if user.started_bot and user.private_chat_id is not None and invite.invitee_user_id is None:
+            try:
+                invite = await self._pairing.bind_pending_invite_to_user(invite.id, user.id, now)
+            except LookupError as error:
+                raise NotFoundError("Приглашение не найдено или уже недействительно.") from error
+            except PermissionError as error:
+                raise ConflictError(str(error)) from error
+            except ValueError as error:
+                raise ValidationError(str(error)) from error
         inviter = await self._users.get_by_id(invite.inviter_user_id)
         if inviter is None:
             raise NotFoundError("Пользователь-инициатор не найден.")
@@ -200,6 +205,25 @@ class PairingService:
             payload={'inviter_user_id': inviter.id},
         )
         return rejected_invite, inviter, rejector
+
+    async def cancel_outgoing_invite(self, telegram_user_id: int) -> PairInvite:
+        user = await self._require_user(telegram_user_id)
+        now = datetime.now(tz=UTC)
+        await self._pairing.expire_due_invites(now)
+
+        invite = await self._pairing.cancel_latest_pending_outgoing_invite(
+            inviter_user_id=user.id,
+            now=now,
+        )
+        if invite is None:
+            raise NotFoundError("Активного исходящего приглашения нет.")
+
+        await self._audit_event(
+            action='pair_invite_cancelled',
+            entity_id=invite.id,
+            actor_user_id=user.id,
+        )
+        return invite
 
     async def unpair(self, telegram_user_id: int) -> tuple[Pair, User, User]:
         user = await self._require_user(telegram_user_id)

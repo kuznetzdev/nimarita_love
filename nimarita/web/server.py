@@ -4,12 +4,14 @@ import logging
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
+from urllib.parse import urlparse
 
 from aiohttp import web
 
+from nimarita.catalog import care_recipient_hint, care_reply_tone_label, care_tone_label, get_quick_reply_pages
 from nimarita.config import Settings
-from nimarita.domain.enums import RelationshipRole, ReminderIntervalUnit, ReminderRuleKind
+from nimarita.domain.enums import CareDispatchStatus, RelationshipRole, ReminderIntervalUnit, ReminderRuleKind
 from nimarita.domain.errors import AccessDeniedError, ConflictError, NotFoundError, ValidationError
 from nimarita.domain.models import DashboardState
 from nimarita.logging import reset_request_id, set_request_id
@@ -33,14 +35,17 @@ NO_STORE_HEADERS = {
 API_CORS_ALLOW_METHODS = 'GET, POST, OPTIONS'
 API_CORS_ALLOW_HEADERS = 'Authorization, Content-Type'
 API_CORS_MAX_AGE_SECONDS = '86400'
+MAX_API_BODY_BYTES = 64 * 1024
 _API_BASE_PLACEHOLDER = 'PLACEHOLDER_API_BASE'
+AUDIT_SERVICE_APP_KEY: Final[web.AppKey[AuditService]] = web.AppKey('audit_service', AuditService)
+ALLOWED_CORS_ORIGINS_APP_KEY: Final[web.AppKey[tuple[str, ...]]] = web.AppKey('allowed_cors_origins', tuple[str, ...])
 
 
 def _build_cors_headers(request: web.Request) -> dict[str, str]:
     origin = request.headers.get('Origin')
     if not origin:
         return {}
-    allowed = request.app.get('allowed_cors_origins', ())
+    allowed = request.app.get(ALLOWED_CORS_ORIGINS_APP_KEY, ())
     if origin not in allowed:
         return {}
     return {
@@ -98,7 +103,7 @@ async def error_middleware(request: web.Request, handler: web.Handler) -> web.St
     try:
         return await handler(request)
     except WebAuthError as error:
-        audit: AuditService | None = request.app.get('audit_service')
+        audit = request.app.get(AUDIT_SERVICE_APP_KEY)
         if audit is not None:
             await audit.record(
                 action='web_auth_failed',
@@ -108,7 +113,7 @@ async def error_middleware(request: web.Request, handler: web.Handler) -> web.St
             )
         return web.json_response({'ok': False, 'error': error.message}, status=error.status, headers=NO_STORE_HEADERS)
     except AccessDeniedError as error:
-        audit: AuditService | None = request.app.get('audit_service')
+        audit = request.app.get(AUDIT_SERVICE_APP_KEY)
         if audit is not None:
             await audit.record(
                 action='web_access_denied',
@@ -168,6 +173,15 @@ class WebServer:
         self._runner: web.AppRunner | None = None
         self._site: web.TCPSite | None = None
 
+    def _build_frontend_api_base(self) -> str:
+        public_url = self._settings.webapp_public_url or ''
+        if not public_url:
+            return ''
+        parsed = urlparse(public_url)
+        if parsed.scheme and parsed.netloc:
+            return f'{parsed.scheme}://{parsed.netloc}'
+        return public_url.rstrip('/')
+
     def _get_frontend_html(self) -> str | None:
         """Read and cache index.html with PLACEHOLDER_API_BASE substituted."""
         if self._frontend_html is not None:
@@ -175,7 +189,7 @@ class WebServer:
         if not self._frontend_path.exists():
             return None
         raw = self._frontend_path.read_text(encoding='utf-8')
-        api_base = self._settings.webapp_public_url or ''
+        api_base = self._build_frontend_api_base()
         self._frontend_html = raw.replace(_API_BASE_PLACEHOLDER, api_base)
         logger.info('Frontend loaded: substituted API_BASE=%r', api_base)
         return self._frontend_html
@@ -197,9 +211,12 @@ class WebServer:
         self._site = None
 
     def _build_app(self) -> web.Application:
-        app = web.Application(middlewares=[request_context_middleware, access_log_middleware, cors_middleware, error_middleware])
-        app['audit_service'] = self._audit
-        app['allowed_cors_origins'] = self._settings.allowed_cors_origins
+        app = web.Application(
+            client_max_size=MAX_API_BODY_BYTES,
+            middlewares=[request_context_middleware, access_log_middleware, cors_middleware, error_middleware],
+        )
+        app[AUDIT_SERVICE_APP_KEY] = self._audit
+        app[ALLOWED_CORS_ORIGINS_APP_KEY] = self._settings.allowed_cors_origins
         app.router.add_get('/', self._index)
         app.router.add_get('/health', self._health_live)
         app.router.add_get('/health/live', self._health_live)
@@ -211,6 +228,7 @@ class WebServer:
         app.router.add_post('/api/v1/profile', self._update_profile)
         app.router.add_get('/api/v1/state', self._state)
         app.router.add_post('/api/v1/pairs/invite', self._create_invite)
+        app.router.add_post('/api/v1/pairs/invite/cancel', self._cancel_invite)
         app.router.add_post('/api/v1/pairs/accept', self._accept_invite)
         app.router.add_post('/api/v1/pairs/reject', self._reject_invite)
         app.router.add_post('/api/v1/pairs/unpair', self._unpair)
@@ -221,6 +239,7 @@ class WebServer:
         app.router.add_get('/api/v1/care/templates', self._list_care_templates)
         app.router.add_get('/api/v1/care/history', self._list_care_history)
         app.router.add_post('/api/v1/care/send', self._send_care)
+        app.router.add_post('/api/v1/care/respond', self._respond_care)
         app.router.add_post('/api/v1/care/send-custom', self._send_custom_care)
         app.router.add_post('/api/v1/care/respond-custom', self._respond_custom_care)
         return app
@@ -269,79 +288,42 @@ class WebServer:
             actor_user_id=user.id,
             payload={'telegram_user_id': user.telegram_user_id},
         )
-        state = await self._pairing_service.get_dashboard(user.telegram_user_id)
         invite_preview = None
-        reminders: list[dict[str, Any]] = []
-        care_templates: list[dict[str, Any]] = []
-        care_history: list[dict[str, Any]] = []
-        if state.active_pair is not None:
-            reminders = [
-                self._serialize_reminder(item)
-                for item in await self._reminder_service.list_pair_reminders(telegram_user_id=user.telegram_user_id)
-            ]
-            care_templates = [
-                self._serialize_care_template(item)
-                for item in await self._care_service.list_templates(telegram_user_id=user.telegram_user_id)
-            ]
-            care_history = [
-                self._serialize_care_dispatch(item, viewer_telegram_user_id=user.telegram_user_id)
-                for item in await self._care_service.list_history(
-                    telegram_user_id=user.telegram_user_id,
-                    limit=self._settings.care_history_limit,
-                )
-            ]
+        invite_preview_error: str | None = None
         if start_param and start_param.startswith('invite_'):
             raw_token = start_param.removeprefix('invite_')
             try:
                 preview = await self._pairing_service.preview_invite(user.telegram_user_id, raw_token)
-            except (NotFoundError, ValidationError):
-                invite_preview = None
+            except (ConflictError, NotFoundError, ValidationError) as error:
+                invite_preview_error = str(error)
             else:
                 invite_preview = {
                     'invite_id': preview.invite.id,
                     'inviter': self._serialize_user(preview.inviter),
                     'expires_at': preview.invite.expires_at.isoformat(),
                 }
+        dashboard_payload = await self._build_dashboard_payload(user.telegram_user_id)
         session_token = self._sessions.issue(telegram_user_id=user.telegram_user_id)
         return web.json_response(
             {
                 'ok': True,
                 'session_token': session_token,
                 'user': self._serialize_user(user),
-                'state': self._serialize_state(state),
+                **dashboard_payload,
                 'start_param': start_param,
                 'invite_preview': invite_preview,
-                'reminders': reminders,
-                'care_templates': care_templates,
-                'care_history': care_history,
+                'invite_preview_error': invite_preview_error,
             },
             headers=NO_STORE_HEADERS,
         )
 
     async def _state(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
-        state = await self._pairing_service.get_dashboard(telegram_user_id)
-        payload: dict[str, Any] = {'ok': True, 'state': self._serialize_state(state)}
-        if state.active_pair is not None:
-            payload['reminders'] = [
-                self._serialize_reminder(item)
-                for item in await self._reminder_service.list_pair_reminders(telegram_user_id=telegram_user_id)
-            ]
-            payload['care_templates'] = [
-                self._serialize_care_template(item)
-                for item in await self._care_service.list_templates(telegram_user_id=telegram_user_id)
-            ]
-            payload['care_history'] = [
-                self._serialize_care_dispatch(item, viewer_telegram_user_id=telegram_user_id)
-                for item in await self._care_service.list_history(
-                    telegram_user_id=telegram_user_id,
-                    limit=self._settings.care_history_limit,
-                )
-            ]
-        return web.json_response(payload, headers=NO_STORE_HEADERS)
+        telegram_user_id = await self._require_session(request)
+        dashboard_payload = await self._build_dashboard_payload(telegram_user_id)
+        return web.json_response({'ok': True, **dashboard_payload}, headers=NO_STORE_HEADERS)
 
     async def _update_profile(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         body = await self._read_json(request)
         role_text = (_read_optional_text(body.get('relationship_role')) or RelationshipRole.UNSPECIFIED.value).lower()
         try:
@@ -349,41 +331,27 @@ class WebServer:
         except ValueError as error:
             raise WebAuthError(status=400, message='Некорректная роль. Используй woman, man или unspecified.') from error
         user = await self._user_service.set_relationship_role(telegram_user_id, role)
-        state = await self._pairing_service.get_dashboard(telegram_user_id)
-        payload: dict[str, Any] = {'ok': True, 'user': self._serialize_user(user), 'state': self._serialize_state(state)}
-        if state.active_pair is not None:
-            payload['reminders'] = [
-                self._serialize_reminder(item)
-                for item in await self._reminder_service.list_pair_reminders(telegram_user_id=telegram_user_id)
-            ]
-            payload['care_templates'] = [
-                self._serialize_care_template(item)
-                for item in await self._care_service.list_templates(telegram_user_id=telegram_user_id)
-            ]
-            payload['care_history'] = [
-                self._serialize_care_dispatch(item, viewer_telegram_user_id=telegram_user_id)
-                for item in await self._care_service.list_history(
-                    telegram_user_id=telegram_user_id,
-                    limit=self._settings.care_history_limit,
-                )
-            ]
-        return web.json_response(
-            payload,
-            headers=NO_STORE_HEADERS,
-        )
+        dashboard_payload = await self._build_dashboard_payload(telegram_user_id)
+        return web.json_response({'ok': True, 'user': self._serialize_user(user), **dashboard_payload}, headers=NO_STORE_HEADERS)
 
     async def _create_invite(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         result = await self._pairing_service.create_invite(telegram_user_id)
-        state = await self._pairing_service.get_dashboard(telegram_user_id)
+        dashboard_payload = await self._build_dashboard_payload(telegram_user_id)
         return web.json_response(
-            {'ok': True, 'invite': self._serialize_invite_result(result), 'state': self._serialize_state(state)},
+            {'ok': True, 'invite': self._serialize_invite_result(result), **dashboard_payload},
             status=201,
             headers=NO_STORE_HEADERS,
         )
 
+    async def _cancel_invite(self, request: web.Request) -> web.Response:
+        telegram_user_id = await self._require_session(request)
+        await self._pairing_service.cancel_outgoing_invite(telegram_user_id)
+        dashboard_payload = await self._build_dashboard_payload(telegram_user_id)
+        return web.json_response({'ok': True, **dashboard_payload}, headers=NO_STORE_HEADERS)
+
     async def _accept_invite(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         body = await self._read_json(request)
         raw_token = _read_optional_text(body.get('token'))
         invite_id = _read_optional_int(body.get('invite_id'))
@@ -394,35 +362,11 @@ class WebServer:
         else:
             raise WebAuthError(status=400, message='Нужен token приглашения или invite_id.')
         await self._notifier.notify_pair_confirmed(inviter, invitee)
-        state = await self._pairing_service.get_dashboard(telegram_user_id)
-        reminders = [
-            self._serialize_reminder(item)
-            for item in await self._reminder_service.list_pair_reminders(telegram_user_id=telegram_user_id)
-        ]
-        care_templates = [
-            self._serialize_care_template(item)
-            for item in await self._care_service.list_templates(telegram_user_id=telegram_user_id)
-        ]
-        care_history = [
-            self._serialize_care_dispatch(item, viewer_telegram_user_id=telegram_user_id)
-            for item in await self._care_service.list_history(
-                telegram_user_id=telegram_user_id,
-                limit=self._settings.care_history_limit,
-            )
-        ]
-        return web.json_response(
-            {
-                'ok': True,
-                'state': self._serialize_state(state),
-                'reminders': reminders,
-                'care_templates': care_templates,
-                'care_history': care_history,
-            },
-            headers=NO_STORE_HEADERS,
-        )
+        dashboard_payload = await self._build_dashboard_payload(telegram_user_id)
+        return web.json_response({'ok': True, **dashboard_payload}, headers=NO_STORE_HEADERS)
 
     async def _reject_invite(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         body = await self._read_json(request)
         raw_token = _read_optional_text(body.get('token'))
         invite_id = _read_optional_int(body.get('invite_id'))
@@ -433,18 +377,18 @@ class WebServer:
         else:
             raise WebAuthError(status=400, message='Нужен token приглашения или invite_id.')
         await self._notifier.notify_pair_rejected(inviter, rejector)
-        state = await self._pairing_service.get_dashboard(telegram_user_id)
-        return web.json_response({'ok': True, 'state': self._serialize_state(state)}, headers=NO_STORE_HEADERS)
+        dashboard_payload = await self._build_dashboard_payload(telegram_user_id)
+        return web.json_response({'ok': True, **dashboard_payload}, headers=NO_STORE_HEADERS)
 
     async def _unpair(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         _pair, actor, partner = await self._pairing_service.unpair(telegram_user_id)
         await self._notifier.notify_pair_closed(actor, partner)
-        state = await self._pairing_service.get_dashboard(telegram_user_id)
-        return web.json_response({'ok': True, 'state': self._serialize_state(state), 'reminders': [], 'care_history': []}, headers=NO_STORE_HEADERS)
+        dashboard_payload = await self._build_dashboard_payload(telegram_user_id)
+        return web.json_response({'ok': True, **dashboard_payload}, headers=NO_STORE_HEADERS)
 
     async def _list_reminders(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         reminders = [
             self._serialize_reminder(item)
             for item in await self._reminder_service.list_pair_reminders(telegram_user_id=telegram_user_id)
@@ -452,13 +396,13 @@ class WebServer:
         return web.json_response({'ok': True, 'reminders': reminders}, headers=NO_STORE_HEADERS)
 
     async def _create_reminder(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         body = await self._read_json(request)
         text = _read_optional_text(body.get('text')) or ''
         scheduled_for_local = _read_optional_text(body.get('scheduled_for_local')) or ''
         timezone = _read_optional_text(body.get('timezone')) or self._settings.default_timezone
         kind = _read_reminder_kind(body.get('kind'))
-        recurrence_every = _read_optional_int(body.get('recurrence_every')) or 1
+        recurrence_every = _read_recurrence_every(body.get('recurrence_every'))
         recurrence_unit = _read_recurrence_unit(body.get('recurrence_unit'))
         envelope = await self._reminder_service.create_reminder(
             telegram_user_id=telegram_user_id,
@@ -480,7 +424,7 @@ class WebServer:
         )
 
     async def _update_reminder(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         rule_id_text = request.match_info.get('rule_id', '')
         try:
             rule_id = int(rule_id_text)
@@ -491,7 +435,7 @@ class WebServer:
         scheduled_for_local = _read_optional_text(body.get('scheduled_for_local')) or ''
         timezone = _read_optional_text(body.get('timezone')) or self._settings.default_timezone
         kind = _read_reminder_kind(body.get('kind'))
-        recurrence_every = _read_optional_int(body.get('recurrence_every')) or 1
+        recurrence_every = _read_recurrence_every(body.get('recurrence_every'))
         recurrence_unit = _read_recurrence_unit(body.get('recurrence_unit'))
         envelope = await self._reminder_service.update_reminder(
             telegram_user_id=telegram_user_id,
@@ -513,7 +457,7 @@ class WebServer:
         )
 
     async def _cancel_reminder(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         rule_id_text = request.match_info.get('rule_id', '')
         try:
             rule_id = int(rule_id_text)
@@ -530,7 +474,7 @@ class WebServer:
         )
 
     async def _list_care_templates(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         category = _read_optional_text(request.query.get('category'))
         templates = [
             self._serialize_care_template(item)
@@ -539,7 +483,7 @@ class WebServer:
         return web.json_response({'ok': True, 'templates': templates}, headers=NO_STORE_HEADERS)
 
     async def _list_care_history(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         history = [
             self._serialize_care_dispatch(item, viewer_telegram_user_id=telegram_user_id)
             for item in await self._care_service.list_history(
@@ -550,7 +494,7 @@ class WebServer:
         return web.json_response({'ok': True, 'history': history}, headers=NO_STORE_HEADERS)
 
     async def _send_care(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         body = await self._read_json(request)
         template_code = _read_optional_text(body.get('template_code'))
         if not template_code:
@@ -576,8 +520,39 @@ class WebServer:
             headers=NO_STORE_HEADERS,
         )
 
+    async def _respond_care(self, request: web.Request) -> web.Response:
+        telegram_user_id = await self._require_session(request)
+        body = await self._read_json(request)
+        dispatch_id = _read_optional_int(body.get('dispatch_id'))
+        reply_code = _read_optional_text(body.get('reply_code'))
+        if dispatch_id is None:
+            raise WebAuthError(status=400, message='Нужен dispatch_id для ответа.')
+        if not reply_code:
+            raise WebAuthError(status=400, message='Нужен reply_code для ответа.')
+        result = await self._care_service.register_quick_reply(
+            telegram_user_id=telegram_user_id,
+            dispatch_id=dispatch_id,
+            reply_code=reply_code,
+        )
+        await self._notifier.notify_care_response(result)
+        history = [
+            self._serialize_care_dispatch(item, viewer_telegram_user_id=telegram_user_id)
+            for item in await self._care_service.list_history(
+                telegram_user_id=telegram_user_id,
+                limit=self._settings.care_history_limit,
+            )
+        ]
+        return web.json_response(
+            {
+                'ok': True,
+                'dispatch': self._serialize_care_dispatch(result.envelope, viewer_telegram_user_id=telegram_user_id),
+                'history': history,
+            },
+            headers=NO_STORE_HEADERS,
+        )
+
     async def _send_custom_care(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         body = await self._read_json(request)
         title = _read_optional_text(body.get('title')) or 'Моё сообщение'
         message = _read_optional_text(body.get('message')) or ''
@@ -606,7 +581,7 @@ class WebServer:
         )
 
     async def _respond_custom_care(self, request: web.Request) -> web.Response:
-        telegram_user_id = self._require_session(request)
+        telegram_user_id = await self._require_session(request)
         body = await self._read_json(request)
         dispatch_id = _read_optional_int(body.get('dispatch_id'))
         if dispatch_id is None:
@@ -638,19 +613,55 @@ class WebServer:
             headers=NO_STORE_HEADERS,
         )
 
-    async def _read_json(self, request: web.Request) -> dict[str, Any]:
+    async def _build_dashboard_payload(self, telegram_user_id: int) -> dict[str, object]:
+        state = await self._pairing_service.get_dashboard(telegram_user_id)
+        reminders: list[dict[str, object]] = []
+        care_templates: list[dict[str, object]] = []
+        care_history: list[dict[str, object]] = []
+        if state.active_pair is not None:
+            reminders = [
+                self._serialize_reminder(item)
+                for item in await self._reminder_service.list_pair_reminders(telegram_user_id=telegram_user_id)
+            ]
+            care_templates = [
+                self._serialize_care_template(item)
+                for item in await self._care_service.list_templates(telegram_user_id=telegram_user_id)
+            ]
+            care_history = [
+                self._serialize_care_dispatch(item, viewer_telegram_user_id=telegram_user_id)
+                for item in await self._care_service.list_history(
+                    telegram_user_id=telegram_user_id,
+                    limit=self._settings.care_history_limit,
+                )
+            ]
+        return {
+            'state': self._serialize_state(state),
+            'reminders': reminders,
+            'care_templates': care_templates,
+            'care_history': care_history,
+        }
+
+    async def _read_json(self, request: web.Request) -> dict[str, object]:
         try:
             body = await request.json()
         except Exception as error:
             raise WebAuthError(status=400, message='Некорректный JSON в теле запроса.') from error
-        return body if isinstance(body, dict) else {}
+        if not isinstance(body, dict):
+            raise WebAuthError(status=400, message='JSON в теле запроса должен быть объектом.')
+        return body
 
-    def _require_session(self, request: web.Request) -> int:
+    async def _require_session(self, request: web.Request) -> int:
         header = request.headers.get('Authorization', '')
         if not header.startswith('Bearer '):
             raise WebAuthError(status=401, message='Отсутствует Bearer-токен сессии.')
         token = header.removeprefix('Bearer ').strip()
-        return self._sessions.verify(token)
+        telegram_user_id = self._sessions.verify(token)
+        if not await self._user_service.is_allowed(telegram_user_id):
+            raise AccessDeniedError('Доступ к web-сессии ограничен.')
+        user = await self._user_service.get_by_telegram_user_id(telegram_user_id)
+        if user is None:
+            raise WebAuthError(status=401, message='Сессия пользователя больше недействительна. Войди заново.')
+        return telegram_user_id
 
     def _serialize_user(self, user: Any) -> dict[str, Any]:
         return {
@@ -744,10 +755,31 @@ class WebServer:
             'emoji': template.emoji,
             'sender_role': template.sender_role.value,
             'recipient_role': template.recipient_role.value,
+            'recipient_hint': care_recipient_hint(template.recipient_role),
+            'tone_label': care_tone_label(template.category),
             'sort_order': template.sort_order,
         }
 
+    def _serialize_quick_reply(self, reply) -> dict[str, object]:
+        return {
+            'code': reply.code,
+            'category': reply.category,
+            'title': reply.title,
+            'body': reply.body,
+            'emoji': reply.emoji,
+            'tone_label': care_reply_tone_label(reply.category),
+            'sort_order': reply.sort_order,
+        }
+
     def _serialize_care_dispatch(self, envelope, *, viewer_telegram_user_id: int) -> dict[str, Any]:
+        is_inbound = envelope.sender.telegram_user_id != viewer_telegram_user_id
+        quick_replies: list[dict[str, object]] = []
+        if is_inbound and envelope.dispatch.status == CareDispatchStatus.SENT:
+            quick_replies = [
+                self._serialize_quick_reply(reply)
+                for page in get_quick_reply_pages(envelope.dispatch.category)[:2]
+                for reply in page
+            ]
         return {
             'id': envelope.dispatch.id,
             'pair_id': envelope.dispatch.pair_id,
@@ -757,6 +789,8 @@ class WebServer:
             'title': envelope.dispatch.title,
             'body': envelope.dispatch.body,
             'emoji': envelope.dispatch.emoji,
+            'recipient_hint': care_recipient_hint(envelope.recipient.relationship_role),
+            'tone_label': care_tone_label(envelope.dispatch.category),
             'status': envelope.dispatch.status.value,
             'telegram_message_id': envelope.dispatch.telegram_message_id,
             'response_code': envelope.dispatch.response_code,
@@ -774,7 +808,8 @@ class WebServer:
             'updated_at': envelope.dispatch.updated_at.isoformat(),
             'sender': self._serialize_user(envelope.sender),
             'recipient': self._serialize_user(envelope.recipient),
-            'direction': 'outbound' if envelope.sender.telegram_user_id == viewer_telegram_user_id else 'inbound',
+            'direction': 'inbound' if is_inbound else 'outbound',
+            'quick_replies': quick_replies,
         }
 
 
@@ -794,6 +829,17 @@ def _read_optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _read_recurrence_every(value: Any) -> int:
+    if value is None:
+        return 1
+    if isinstance(value, str) and not value.strip():
+        return 1
+    parsed = _read_optional_int(value)
+    if parsed is None:
+        raise WebAuthError(status=400, message='Некорректный recurrence_every.')
+    return parsed
 
 
 def _read_reminder_kind(value: Any) -> ReminderRuleKind:

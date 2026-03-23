@@ -5,12 +5,13 @@ import unittest
 from pathlib import Path
 
 from nimarita.config import Settings
-from nimarita.domain.errors import ConflictError
+from nimarita.domain.errors import ConflictError, NotFoundError
 from nimarita.domain.enums import CareDispatchStatus
 from nimarita.domain.models import TelegramUserSnapshot
 from nimarita.infra import LinkBuilder, SQLiteDatabase
 from nimarita.repositories import CareRepository, PairingRepository, ReminderRepository, UserRepository
 from nimarita.services import CareService, PairingService, UserService
+from nimarita.telegram.keyboards import dashboard_keyboard
 
 
 class PairingHardeningTestCase(unittest.IsolatedAsyncioTestCase):
@@ -101,6 +102,38 @@ class PairingHardeningTestCase(unittest.IsolatedAsyncioTestCase):
         assert bob is not None and stored is not None
         self.assertEqual(stored.invitee_user_id, bob.id)
 
+    async def test_web_only_preview_does_not_bind_invitee_until_bot_start(self) -> None:
+        await self.users.ensure_bot_user(
+            TelegramUserSnapshot(telegram_user_id=101, chat_id=101, username='alice', first_name='Alice', last_name=None, language_code='ru')
+        )
+        await self.users.touch_web_user(
+            TelegramUserSnapshot(telegram_user_id=202, chat_id=None, username='bob', first_name='Bob', last_name=None, language_code='ru')
+        )
+
+        invite = await self.pairing.create_invite(101)
+        preview = await self.pairing.preview_invite(202, invite.raw_token)
+        dashboard = await self.pairing.get_dashboard(202)
+
+        self.assertEqual(preview.invite.id, invite.invite.id)
+        self.assertEqual(dashboard.mode, 'no_pair')
+        self.assertIsNone(dashboard.incoming_invite)
+
+        stored = await self.pairing_repo.get_pending_invite_by_id(invite.invite.id)
+        self.assertIsNotNone(stored)
+        assert stored is not None
+        self.assertIsNone(stored.invitee_user_id)
+
+        with self.assertRaises(ConflictError):
+            await self.pairing.accept_invite_by_token(202, invite.raw_token)
+
+        await self.users.ensure_bot_user(
+            TelegramUserSnapshot(telegram_user_id=202, chat_id=202, username='bob', first_name='Bob', last_name=None, language_code='ru')
+        )
+        pair, inviter, invitee = await self.pairing.accept_invite_by_token(202, invite.raw_token)
+        self.assertEqual(pair.created_by_user_id, inviter.id)
+        self.assertTrue(pair.includes(inviter.id))
+        self.assertTrue(pair.includes(invitee.id))
+
     async def test_web_only_user_cannot_issue_invite_before_starting_bot(self) -> None:
         await self.users.touch_web_user(
             TelegramUserSnapshot(telegram_user_id=303, chat_id=None, username='webonly', first_name='Web', last_name='Only', language_code='ru')
@@ -130,6 +163,52 @@ class PairingHardeningTestCase(unittest.IsolatedAsyncioTestCase):
         assert refreshed is not None
         self.assertEqual(refreshed.status, CareDispatchStatus.FAILED)
         self.assertEqual(refreshed.last_error, 'Пара завершена до доставки.')
+    async def test_inviter_can_cancel_pending_outgoing_invite_after_preview_binding(self) -> None:
+        await self.users.ensure_bot_user(
+            TelegramUserSnapshot(telegram_user_id=101, chat_id=101, username='alice', first_name='Alice', last_name=None, language_code='ru')
+        )
+        await self.users.ensure_bot_user(
+            TelegramUserSnapshot(telegram_user_id=202, chat_id=202, username='bob', first_name='Bob', last_name=None, language_code='ru')
+        )
+
+        invite = await self.pairing.create_invite(101)
+        await self.pairing.preview_invite(202, invite.raw_token)
+
+        cancel_invite = getattr(self.pairing, 'cancel_outgoing_invite', None)
+        self.assertIsNotNone(cancel_invite, 'PairingService.cancel_outgoing_invite must exist.')
+        if cancel_invite is None:
+            return
+
+        await cancel_invite(101)
+
+        inviter_dashboard = await self.pairing.get_dashboard(101)
+        invitee_dashboard = await self.pairing.get_dashboard(202)
+
+        self.assertEqual(inviter_dashboard.mode, 'no_pair')
+        self.assertIsNone(inviter_dashboard.outgoing_invite)
+        self.assertEqual(invitee_dashboard.mode, 'no_pair')
+        self.assertIsNone(invitee_dashboard.incoming_invite)
+        with self.assertRaises(NotFoundError):
+            await self.pairing.accept_invite_by_token(202, invite.raw_token)
+
+    async def test_outgoing_invite_dashboard_exposes_cancel_action(self) -> None:
+        await self.users.ensure_bot_user(
+            TelegramUserSnapshot(telegram_user_id=101, chat_id=101, username='alice', first_name='Alice', last_name=None, language_code='ru')
+        )
+
+        await self.pairing.create_invite(101)
+        dashboard = await self.pairing.get_dashboard(101)
+        markup = dashboard_keyboard(dashboard, self.settings.webapp_public_url)
+        callback_data = [
+            button.callback_data
+            for row in markup.inline_keyboard
+            for button in row
+            if button.callback_data is not None
+        ]
+
+        self.assertEqual(dashboard.mode, 'outgoing_invite')
+        self.assertIn('pair:create', callback_data)
+        self.assertIn('invite:cancel_outgoing', callback_data)
 
 
 if __name__ == '__main__':

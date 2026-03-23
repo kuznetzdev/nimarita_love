@@ -1,52 +1,63 @@
 # Nimarita
 
-Telegram-бот и Mini App для подтверждённых пар **1↔1**. Каждый пользователь может иметь только одну активную пару, а все напоминания и care-сообщения работают только внутри этой пары.
+Nimarita is a Telegram bot plus Telegram Mini App for confirmed romantic pairs 1:1.
 
-## Что внутри
+Current product boundaries:
 
-- асинхронный bot runtime на `aiogram`
-- Mini App backend на `aiohttp`
-- SQLite с автоматическим выбором journal mode, checkpoint, quick-check и hot-backup
-- reminders с outbox/worker delivery
-- care: каталог шаблонов, история, быстрые ответы, custom-сообщения и антиспам
-- роли пары: можно указать, кто девушка и кто парень
-- регулярные напоминания: один раз, каждый день, по будням, раз в неделю
-- feature-flag allowlist для закрытого или открытого запуска
-- health/readiness endpoints и audit log
+- one user can have at most one active pair;
+- reminders exist only inside the active pair;
+- care messages exist only inside the active pair;
+- Telegram bot is both the onboarding and delivery channel;
+- the Mini App is the main user workspace;
+- SQLite-backed single-instance deployment is the intended production model.
 
-## Финальная структура
+## Stack
+
+- Python 3.11+
+- `aiogram` for the Telegram bot runtime
+- `aiohttp` for the Mini App backend
+- SQLite for persistence
+- Railway-compatible deployment with a persistent volume
+
+## Repository structure
 
 ```text
 .
-├── nimarita/
-│   ├── app.py
-│   ├── runner.py
-│   ├── config.py
-│   ├── logging.py
-│   ├── catalog/
-│   ├── domain/
-│   ├── infra/
-│   ├── repositories/
-│   ├── services/
-│   ├── telegram/
-│   ├── web/
-│   │   └── static/index.html
-│   └── workers/
-├── docs/
-│   ├── architecture.md
-│   └── operations.md
-├── scripts/
-│   └── cleanup_legacy_layout.py
-├── tests/
-├── .env.example
-├── build_merged_zip.py
-├── main.py
-└── requirements.txt
+|-- nimarita/
+|   |-- app.py
+|   |-- runner.py
+|   |-- config.py
+|   |-- logging.py
+|   |-- catalog/
+|   |-- domain/
+|   |-- infra/
+|   |-- repositories/
+|   |-- services/
+|   |-- telegram/
+|   |-- web/
+|   |   `-- static/index.html
+|   `-- workers/
+|-- docs/
+|   |-- NIMARITA_PRODUCTION_DOCS_INDEX.md
+|   |-- NIMARITA_DEVELOPER_HANDOFF.md
+|   |-- NIMARITA_PRODUCTION_ARCHITECTURE.md
+|   |-- NIMARITA_PRODUCTION_DATA_MODEL.md
+|   |-- NIMARITA_PRODUCTION_API_CONTRACTS.md
+|   |-- NIMARITA_PRODUCTION_FRONTEND_GUIDE.md
+|   |-- NIMARITA_PRODUCTION_USER_FLOWS.md
+|   |-- NIMARITA_PRODUCTION_OPERATIONS.md
+|   `-- NIMARITA_OPERATIONS_RUNBOOK.md
+|-- scripts/
+|   `-- cleanup_legacy_layout.py
+|-- tests/
+|-- .env.example
+|-- main.py
+`-- requirements.txt
 ```
 
-## Быстрый запуск
+## Quick start
 
-```bash
+```powershell
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
@@ -54,95 +65,82 @@ copy .env.example .env
 python main.py
 ```
 
-Альтернативный запуск через пакет:
+Alternative entry point:
 
-```bash
+```powershell
 python -m nimarita
 ```
 
-## Обязательные настройки
+## Minimum required configuration
 
-Минимум нужны:
+Required:
 
 - `BOT_TOKEN`
 - `BOT_USERNAME`
 
-Если нужен Mini App, также нужен внешний `WEBAPP_PUBLIC_URL` по HTTPS.
+Required for Mini App usage:
 
-## Режимы доступа
+- `WEBAPP_PUBLIC_URL` with HTTPS
 
-### Открытый режим
+Recommended for production:
 
-```env
-ACCESS_ALLOWLIST_ENABLED=false
-```
+- `APP_SESSION_SECRET`
+- persistent volume via Railway
 
-Любой пользователь может стартовать бота и создавать пару.
+## Commands
 
-### Закрытый beta-режим
-
-```env
-ACCESS_ALLOWLIST_ENABLED=true
-ALLOWED_USER_IDS=123456789,987654321
-```
-
-Бот будет обслуживать только указанные Telegram user id.
-
-## Базовый сценарий
-
-1. Пользователь A делает `/start`
-2. Пользователь B делает `/start`
-3. Пользователь A делает `/pair`
-4. Пользователь B открывает invite link и подтверждает пару
-5. После этого доступны reminders и care layer
-
-## Команды
+Current Telegram command surface:
 
 - `/start`
 - `/open`
-- `/profile`
 - `/pair`
+- `/profile`
 - `/status`
 - `/remind`
 - `/care`
 - `/help`
 - `/unpair`
 
-## Надёжность на SQLite
+## Access modes
 
-Этот runtime рассчитан на **single-instance production**:
+Open mode:
 
-- Railway Volume для `PRODUCT_DB_PATH` и `PRODUCT_BACKUP_DIR`
-- `AUTO` journal mode: локально `WAL`, на Railway Volume — `DELETE`
-- `synchronous=FULL`
-- `busy_timeout`
-- startup quick-check и foreign-key check
-- maintenance worker
-- hot-backup через SQLite backup API
-- graceful checkpoint на shutdown
-
-### Railway: что обязательно сделать
-
-1. Подключить **Volume** к сервису на Railway.
-2. Не включать несколько replicas для этого сервиса с SQLite.
-3. Оставить `SQLITE_JOURNAL_MODE=AUTO`.
-4. Не указывать `PRODUCT_DB_PATH`, если хочешь, чтобы приложение само использовало `RAILWAY_VOLUME_MOUNT_PATH/nimarita.db`.
-5. Для бэкапов оставить `PRODUCT_BACKUP_DIR` пустым или направить его в volume.
-
-Приложение уже умеет подхватывать `RAILWAY_VOLUME_MOUNT_PATH` и складывать туда базу и backup-ы по умолчанию.
-
-## Если вливаешь архив поверх старого репозитория
-
-В архиве уже нет legacy-дубликатов, но если ты накатываешь файлы поверх старого checkout, после копирования запусти:
-
-```bash
-python scripts/cleanup_legacy_layout.py --apply
+```env
+ACCESS_ALLOWLIST_ENABLED=false
 ```
 
-Скрипт удалит старые пути, которые больше не должны жить в репозитории.
+Closed beta:
 
-## Тесты
+```env
+ACCESS_ALLOWLIST_ENABLED=true
+ALLOWED_USER_IDS=123456789,987654321
+```
 
-```bash
+## Production notes
+
+Current production assumptions:
+
+- one Railway service;
+- one persistent volume;
+- one running instance;
+- one SQLite database file on that volume.
+
+Do not run multiple replicas against the same SQLite database.
+
+## Documentation
+
+Canonical documentation entry point:
+
+- `docs/NIMARITA_PRODUCTION_DOCS_INDEX.md`
+
+Recommended first read for a new developer:
+
+- `docs/NIMARITA_DEVELOPER_HANDOFF.md`
+
+## Tests
+
+Run the current test suite with:
+
+```powershell
 python -m unittest discover -v
 ```
