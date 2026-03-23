@@ -145,7 +145,10 @@ Important behaviors:
 - reminder list is visible as a primary workspace section;
 - the composer is collapsible;
 - edit mode keeps the composer open;
+- restore mode keeps the composer open for cancelled reminders;
 - reminder kind controls are conditional;
+- schedule entry is split into separate date and time inputs;
+- quick presets can prefill the next schedule without opening the native picker;
 - long lists can expand with "show more";
 - history/details are grouped under reminder cards.
 
@@ -161,6 +164,12 @@ For interval reminders the UI exposes:
 
 - recurrence every;
 - recurrence unit.
+
+For cancelled reminders the UI exposes:
+
+- a restore action for the creator;
+- restore-through-edit flow with a new future date/time;
+- historical cancelled entries preserved under the same reminder card.
 
 ## 9. Care UX
 
@@ -187,7 +196,7 @@ This is used for:
 - invite creation and cancellation;
 - accept/reject invite;
 - unpair;
-- reminder create/update/cancel;
+- reminder create/update/restore/cancel;
 - care send and reply;
 - profile save;
 - refresh actions.
@@ -225,6 +234,7 @@ The current design intent is:
 
 - calm;
 - compact on mobile;
+- resilient to narrow Telegram mobile viewports;
 - non-technical;
 - Telegram-compatible;
 - high-contrast enough for light and dark themes.

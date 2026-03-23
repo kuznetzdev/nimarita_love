@@ -406,6 +406,98 @@ class ReminderRepository:
             assert updated_rule_row is not None and updated_occurrence_row is not None
             return _row_to_rule(updated_rule_row), _row_to_occurrence(updated_occurrence_row)
 
+    async def restore_rule(
+        self,
+        *,
+        pair_id: int,
+        rule_id: int,
+        actor_user_id: int,
+        text: str,
+        kind: ReminderRuleKind,
+        creator_timezone: str,
+        scheduled_at_utc: datetime,
+        recurrence_every: int,
+        recurrence_unit: ReminderIntervalUnit | None,
+        now: datetime,
+    ) -> tuple[ReminderRule, ReminderOccurrence]:
+        async with self._db.transaction() as tx:
+            rule_row = await tx.fetchone(
+                "SELECT * FROM reminder_rules WHERE id = ? AND pair_id = ?",
+                (rule_id, pair_id),
+            )
+            if rule_row is None:
+                raise LookupError("Правило напоминания не найдено.")
+            rule = _row_to_rule(rule_row)
+            if rule.creator_user_id != actor_user_id:
+                raise PermissionError("Только создатель может вернуть это напоминание.")
+            if rule.status is not ReminderRuleStatus.CANCELLED:
+                raise ValueError("Можно вернуть только отменённые напоминания.")
+
+            open_occurrence_rows = await tx.fetchall(
+                """
+                SELECT id FROM reminder_occurrences
+                WHERE rule_id = ? AND status IN (?, ?)
+                """,
+                (
+                    rule_id,
+                    ReminderOccurrenceStatus.SCHEDULED.value,
+                    ReminderOccurrenceStatus.PROCESSING.value,
+                ),
+            )
+            if open_occurrence_rows:
+                occurrence_ids = [int(row["id"]) for row in open_occurrence_rows]
+                placeholders = ",".join("?" for _ in occurrence_ids)
+                await tx.execute(
+                    f"""
+                    UPDATE reminder_occurrences
+                    SET status = ?, cancelled_at = COALESCE(cancelled_at, ?), updated_at = ?
+                    WHERE id IN ({placeholders})
+                    """,
+                    (
+                        ReminderOccurrenceStatus.CANCELLED.value,
+                        now.isoformat(),
+                        now.isoformat(),
+                        *occurrence_ids,
+                    ),
+                )
+
+            await tx.execute(
+                """
+                UPDATE reminder_rules
+                SET kind = ?,
+                    text = ?,
+                    creator_timezone = ?,
+                    origin_scheduled_at_utc = ?,
+                    recurrence_every = ?,
+                    recurrence_unit = ?,
+                    status = ?,
+                    cancelled_at = NULL,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    kind.value,
+                    text,
+                    creator_timezone,
+                    scheduled_at_utc.isoformat(),
+                    recurrence_every,
+                    recurrence_unit.value if recurrence_unit is not None else None,
+                    ReminderRuleStatus.ACTIVE.value,
+                    now.isoformat(),
+                    rule_id,
+                ),
+            )
+            updated_rule_row = await tx.fetchone("SELECT * FROM reminder_rules WHERE id = ?", (rule_id,))
+            assert updated_rule_row is not None
+            updated_rule = _row_to_rule(updated_rule_row)
+            occurrence = await self._create_occurrence_tx(
+                tx,
+                rule=updated_rule,
+                scheduled_at_utc=scheduled_at_utc,
+                now=now,
+            )
+            return updated_rule, occurrence
+
     async def cancel_open_for_pair(self, *, pair_id: int, now: datetime) -> int:
         async with self._db.transaction() as tx:
             await tx.execute(

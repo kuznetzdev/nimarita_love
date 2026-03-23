@@ -463,6 +463,44 @@ class ReminderServiceTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(scheduled_entries, [])
         self.assertGreaterEqual(len(cancelled_entries), 2)
 
+    async def test_restore_cancelled_reminder_reactivates_rule_with_fresh_schedule(self) -> None:
+        created = await self.reminders.create_reminder(
+            telegram_user_id=101,
+            text="paused cadence",
+            scheduled_for_local="2030-01-01T10:00",
+            timezone="Europe/Moscow",
+            kind=ReminderRuleKind.DAILY,
+        )
+        await self.reminders.cancel_reminder(
+            telegram_user_id=101,
+            rule_id=created.rule.id,
+        )
+
+        restored = await self.reminders.restore_reminder(
+            telegram_user_id=101,
+            rule_id=created.rule.id,
+            text="resumed cadence",
+            scheduled_for_local="2030-01-10T08:45",
+            timezone="Europe/Moscow",
+            kind=ReminderRuleKind.INTERVAL,
+            recurrence_every=3,
+            recurrence_unit=ReminderIntervalUnit.DAY,
+        )
+
+        reminders = await self.reminders.list_pair_reminders(telegram_user_id=101, limit=20)
+        rule_entries = [item for item in reminders if item.rule.id == created.rule.id]
+        scheduled_entries = [item for item in rule_entries if item.occurrence.status is ReminderOccurrenceStatus.SCHEDULED]
+        cancelled_entries = [item for item in rule_entries if item.occurrence.status is ReminderOccurrenceStatus.CANCELLED]
+
+        self.assertEqual(restored.rule.status, ReminderRuleStatus.ACTIVE)
+        self.assertEqual(restored.rule.kind, ReminderRuleKind.INTERVAL)
+        self.assertEqual(restored.rule.recurrence_every, 3)
+        self.assertEqual(restored.rule.recurrence_unit, ReminderIntervalUnit.DAY)
+        self.assertEqual(restored.occurrence.text, "resumed cadence")
+        self.assertEqual(restored.occurrence.status, ReminderOccurrenceStatus.SCHEDULED)
+        self.assertEqual(len(scheduled_entries), 1)
+        self.assertGreaterEqual(len(cancelled_entries), 1)
+
     async def test_non_creator_cannot_edit_or_cancel_reminder(self) -> None:
         created = await self.reminders.create_reminder(
             telegram_user_id=101,
@@ -486,6 +524,21 @@ class ReminderServiceTestCase(unittest.IsolatedAsyncioTestCase):
             await self.reminders.cancel_reminder(
                 telegram_user_id=202,
                 rule_id=created.rule.id,
+            )
+
+        await self.reminders.cancel_reminder(
+            telegram_user_id=101,
+            rule_id=created.rule.id,
+        )
+
+        with self.assertRaises(ConflictError):
+            await self.reminders.restore_reminder(
+                telegram_user_id=202,
+                rule_id=created.rule.id,
+                text="tamper restore",
+                scheduled_for_local="2030-01-03T10:00",
+                timezone="Europe/Moscow",
+                kind=ReminderRuleKind.DAILY,
             )
 
     async def test_claim_due_occurrences_ignores_scheduled_rows_under_cancelled_rule(self) -> None:

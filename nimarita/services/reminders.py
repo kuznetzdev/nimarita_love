@@ -259,6 +259,71 @@ class ReminderService:
         )
         return envelope
 
+    async def restore_reminder(
+        self,
+        *,
+        telegram_user_id: int,
+        rule_id: int,
+        text: str,
+        scheduled_for_local: str,
+        timezone: str,
+        kind: ReminderRuleKind,
+        recurrence_every: int = 1,
+        recurrence_unit: ReminderIntervalUnit | None = None,
+    ) -> ReminderEnvelope:
+        user = await self._require_user(telegram_user_id)
+        pair, _partner = await self._require_active_pair(user)
+
+        clean_text = _normalize_text(text)
+        if not clean_text:
+            raise ValidationError("Текст напоминания не должен быть пустым.")
+        if len(clean_text) > 400:
+            raise ValidationError("Текст напоминания слишком длинный. Максимум 400 символов.")
+
+        scheduled_at_utc = _parse_local_datetime_to_utc(scheduled_for_local, timezone)
+        now = datetime.now(tz=UTC)
+        if scheduled_at_utc <= now - timedelta(seconds=5):
+            raise ValidationError("Время напоминания должно быть в будущем.")
+
+        recurrence_every, recurrence_unit = _normalize_recurrence(kind, recurrence_every, recurrence_unit)
+        await self._users.set_timezone(user.id, timezone)
+        try:
+            rule, occurrence = await self._reminders.restore_rule(
+                pair_id=pair.id,
+                rule_id=rule_id,
+                actor_user_id=user.id,
+                text=clean_text,
+                kind=kind,
+                creator_timezone=timezone,
+                scheduled_at_utc=scheduled_at_utc,
+                recurrence_every=recurrence_every,
+                recurrence_unit=recurrence_unit,
+                now=now,
+            )
+        except LookupError as error:
+            raise NotFoundError("Напоминание не найдено.") from error
+        except PermissionError as error:
+            raise ConflictError(str(error)) from error
+        except ValueError as error:
+            raise ConflictError(str(error)) from error
+        creator = await self._users.get_by_id(rule.creator_user_id)
+        recipient = await self._users.get_by_id(rule.recipient_user_id)
+        assert creator is not None and recipient is not None
+        envelope = ReminderEnvelope(rule=rule, occurrence=occurrence, creator=creator, recipient=recipient)
+        await self._audit_event(
+            action='reminder_restored',
+            entity_id=envelope.occurrence.id,
+            actor_user_id=envelope.creator.id,
+            payload={
+                'rule_id': envelope.rule.id,
+                'scheduled_at_utc': envelope.occurrence.scheduled_at_utc.isoformat(),
+                'kind': envelope.rule.kind.value,
+                'recurrence_every': envelope.rule.recurrence_every,
+                'recurrence_unit': envelope.rule.recurrence_unit.value if envelope.rule.recurrence_unit else None,
+            },
+        )
+        return envelope
+
     async def claim_due_occurrences(self, *, limit: int) -> list[ReminderEnvelope]:
         now = datetime.now(tz=UTC)
         items = await self._reminders.claim_due_occurrences(now=now, limit=limit)

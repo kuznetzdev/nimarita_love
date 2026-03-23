@@ -360,6 +360,22 @@ class WebServerContractTestCase(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertIn(fragment, html)
 
+    async def test_frontend_html_exposes_restore_flow_and_flexible_reminder_schedule_fields(self) -> None:
+        html = self.web_server._get_frontend_html()
+
+        self.assertIsInstance(html, str)
+        assert isinstance(html, str)
+        for fragment in (
+            'id="reminder-date"',
+            'id="reminder-time"',
+            'id="reminder-datetime" type="hidden"',
+            'data-reminder-preset="plus_2_hours"',
+            'data-reminder-preset="tomorrow_morning"',
+            "state.reminderFormMode === 'restore'",
+            '/api/v1/reminders/${state.reminderEditingRuleId}/restore',
+        ):
+            self.assertIn(fragment, html)
+
     async def test_frontend_html_exposes_clear_reminder_edit_copy_and_history_disclosure(self) -> None:
         html = self.web_server._get_frontend_html()
 
@@ -474,6 +490,35 @@ class WebServerContractTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(reminders, list)
         assert isinstance(reminders, list)
         self.assertFalse(
+            any(item.get('rule_id') == rule_id and item.get('status') == 'scheduled' for item in reminders if isinstance(item, dict))
+        )
+
+        restore_response = await self.client.post(
+            f'/api/v1/reminders/{rule_id}/restore',
+            json={
+                'text': 'Restored weekly rhythm',
+                'scheduled_for_local': '2030-01-07T09:15',
+                'timezone': 'Europe/Moscow',
+                'kind': 'weekly',
+                'recurrence_every': 99,
+                'recurrence_unit': 'month',
+            },
+            headers=self._auth_headers(101),
+        )
+        self.assertEqual(restore_response.status, 200)
+        restore_payload = await restore_response.json()
+        restored = restore_payload.get('reminder')
+        self.assertIsInstance(restored, dict)
+        assert isinstance(restored, dict)
+        self.assertEqual(restored.get('rule_status'), 'active')
+        self.assertEqual(restored.get('status'), 'scheduled')
+        self.assertEqual(restored.get('kind'), 'weekly')
+        self.assertEqual(restored.get('recurrence_every'), 1)
+        self.assertEqual(restored.get('recurrence_unit'), 'week')
+        reminders = restore_payload.get('reminders')
+        self.assertIsInstance(reminders, list)
+        assert isinstance(reminders, list)
+        self.assertTrue(
             any(item.get('rule_id') == rule_id and item.get('status') == 'scheduled' for item in reminders if isinstance(item, dict))
         )
 

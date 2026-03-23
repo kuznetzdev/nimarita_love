@@ -235,6 +235,7 @@ class WebServer:
         app.router.add_get('/api/v1/reminders', self._list_reminders)
         app.router.add_post('/api/v1/reminders', self._create_reminder)
         app.router.add_post('/api/v1/reminders/{rule_id}', self._update_reminder)
+        app.router.add_post('/api/v1/reminders/{rule_id}/restore', self._restore_reminder)
         app.router.add_post('/api/v1/reminders/{rule_id}/cancel', self._cancel_reminder)
         app.router.add_get('/api/v1/care/templates', self._list_care_templates)
         app.router.add_get('/api/v1/care/history', self._list_care_history)
@@ -438,6 +439,39 @@ class WebServer:
         recurrence_every = _read_recurrence_every(body.get('recurrence_every'))
         recurrence_unit = _read_recurrence_unit(body.get('recurrence_unit'))
         envelope = await self._reminder_service.update_reminder(
+            telegram_user_id=telegram_user_id,
+            rule_id=rule_id,
+            text=text,
+            scheduled_for_local=scheduled_for_local,
+            timezone=timezone,
+            kind=kind,
+            recurrence_every=recurrence_every,
+            recurrence_unit=recurrence_unit,
+        )
+        reminders = [
+            self._serialize_reminder(item)
+            for item in await self._reminder_service.list_pair_reminders(telegram_user_id=telegram_user_id)
+        ]
+        return web.json_response(
+            {'ok': True, 'reminder': self._serialize_reminder(envelope), 'reminders': reminders},
+            headers=NO_STORE_HEADERS,
+        )
+
+    async def _restore_reminder(self, request: web.Request) -> web.Response:
+        telegram_user_id = await self._require_session(request)
+        rule_id_text = request.match_info.get('rule_id', '')
+        try:
+            rule_id = int(rule_id_text)
+        except ValueError as error:
+            raise WebAuthError(status=400, message='Некорректный идентификатор напоминания.') from error
+        body = await self._read_json(request)
+        text = _read_optional_text(body.get('text')) or ''
+        scheduled_for_local = _read_optional_text(body.get('scheduled_for_local')) or ''
+        timezone = _read_optional_text(body.get('timezone')) or self._settings.default_timezone
+        kind = _read_reminder_kind(body.get('kind'))
+        recurrence_every = _read_recurrence_every(body.get('recurrence_every'))
+        recurrence_unit = _read_recurrence_unit(body.get('recurrence_unit'))
+        envelope = await self._reminder_service.restore_reminder(
             telegram_user_id=telegram_user_id,
             rule_id=rule_id,
             text=text,
